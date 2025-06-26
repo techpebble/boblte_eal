@@ -318,13 +318,13 @@ export const updateVehicleDetails =  async (req, res) => {
 
   try {
     const { dispatchId } = req.params;
-    const { vehicleNumber, driverName, driverContact } = req.body;
+    const { vehicleNumber, driverName, driverContact, status } = req.body;
 
     const updatedDispatch = await Dispatch.findByIdAndUpdate(
       dispatchId,
       {
         vehicleDetails: { vehicleNumber, driverName, driverContact },
-        status: 'loaded'
+        status: status
       },
       { new: true }
     );
