@@ -370,7 +370,7 @@ export const unlinkEALFromDispatchItem = async (req, res) => {
     // Step 1: Remove the EALLink from dispatch item
     const originalLength = item.EALLinks.length;
     item.EALLinks = item.EALLinks.filter(link =>
-      !(link.prefix === prefix && link.serialFrom === serialFromNum && link.serialTo === serialTo)
+      !(link.prefix === prefix && link.serialFrom === serialFromNum && link.serialTo === serialToNum)
     );
 
     if (item.EALLinks.length === originalLength) {
