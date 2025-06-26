@@ -43,7 +43,7 @@ export const addEALUsage = async (req, res) => {
             });
         }
 
-        if (!dateUsed || isNaN(new Date(dateUsed)) || new Date(dateUsed) > new Date()) {
+        if (!dateUsed || isNaN(new Date(dateUsed))) {
             await session.abortTransaction();
             return res.status(400).json({
                 error: 'Please enter the date correctly'

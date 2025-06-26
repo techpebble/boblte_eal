@@ -33,7 +33,7 @@ export const addEALIssuance = async (req, res) => {
       });
     }
 
-    if (!dateIssued.trim() || new Date(dateIssued) > new Date()) {
+    if (!dateIssued.trim()) {
       return res.status(400).json({
         error: 'Please enter the date correctly'
       });
