@@ -347,8 +347,15 @@ export const unlinkEALFromDispatchItem = async (req, res) => {
 
   try {
     const { dispatchId, itemId, prefix, serialFrom, serialTo } = req.body;
+    const serialFromNum = Number(serialFrom);
+    const serialToNum = Number(serialTo);
 
-    if (!dispatchId || !itemId || !prefix || serialFrom == null || serialTo == null) {
+    if (!mongoose.Types.ObjectId.isValid(dispatchId) || !mongoose.Types.ObjectId.isValid(itemId)) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'Invalid Dispatch or Item ID' });
+    }
+
+    if (!dispatchId || !itemId || !prefix || serialFromNum == null || serialToNum == null) {
       await session.abortTransaction();
       return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -368,7 +375,7 @@ export const unlinkEALFromDispatchItem = async (req, res) => {
     // Step 1: Remove the EALLink from dispatch item
     const originalLength = item.EALLinks.length;
     item.EALLinks = item.EALLinks.filter(link =>
-      !(link.prefix === prefix && link.serialFrom === serialFrom && link.serialTo === serialTo)
+      !(link.prefix === prefix && link.serialFrom === serialFromNum && link.serialTo === serialToNum)
     );
 
     if (item.EALLinks.length === originalLength) {
@@ -392,8 +399,8 @@ export const unlinkEALFromDispatchItem = async (req, res) => {
       dispatchId,
       item: itemId,
       prefix,
-      serialFrom,
-      serialTo
+      serialFromNum,
+      serialToNum
     }).session(session);
 
     if (!ealDispatches.length) {
