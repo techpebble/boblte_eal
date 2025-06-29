@@ -53,7 +53,7 @@ export const loginUser = async (req, res) => {
     const user = await User.findOne({
       $or: [
         { email },
-        { mobile }  // assuming your User schema has a 'mobile' field
+        { mobile: email }  // assuming your User schema has a 'mobile' field
       ]
     }).select('+password');
     if (!user || !(await user.comparePassword(password))) {
