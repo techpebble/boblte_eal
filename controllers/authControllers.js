@@ -11,7 +11,7 @@ export const registerUser = async (req, res) => {
   try {
     const { fullName, email, role, company, password } = req.body;
 
-    if (!fullName || !email || !role || !company || !password) {
+    if (!fullName || !email || !role || !company || !password || !mobile) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -23,6 +23,7 @@ export const registerUser = async (req, res) => {
     const user = await User.create({
       fullName,
       email,
+      mobile,
       role,
       company,
       password
@@ -49,8 +50,12 @@ export const loginUser = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
-
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({
+      $or: [
+        { email },
+        { mobile }  // assuming your User schema has a 'mobile' field
+      ]
+    }).select('+password');
     if (!user || !(await user.comparePassword(password))) {
       return res.status(400).json({ message: "Invalid Credentials" });
     }
