@@ -23,49 +23,49 @@ export const addEALIssuance = async (req, res) => {
 
     if (!company.trim()) {
       return res.status(400).json({
-        error: 'Please select a Company'
+        message: 'Please select a Company'
       });
     }
 
     if (!market.trim()) {
       return res.status(400).json({
-        error: 'Please select a Market'
+        message: 'Please select a Market'
       });
     }
 
     if (!dateIssued.trim()) {
       return res.status(400).json({
-        error: 'Please enter the date correctly'
+        message: 'Please enter the date correctly'
       });
     }
 
     if (!pack.trim()) {
       return res.status(400).json({
-        error: 'Please select a Pack'
+        message: 'Please select a Pack'
       });
     }
 
     if (!/^[A-Z]{3}$/.test(prefix.trim())) {
       return res.status(400).json({
-        error: '"Prefix" must be 3 uppercase letters (A-Z)'
+        message: '"Prefix" must be 3 uppercase letters (A-Z)'
       });
     }
 
     if (!/^\d{10}$/.test(serialFrom)) {
       return res.status(400).json({
-        error: '"Serial From" must be a 10-digit number'
+        message: '"Serial From" must be a 10-digit number'
       });
     }
 
     if (!/^\d{10}$/.test(serialTo)) {
       return res.status(400).json({
-        error: '"Serial To" must be a 10-digit number'
+        message: '"Serial To" must be a 10-digit number'
       });
     }
 
     if (issuedQuantity <= 0) {
       return res.status(400).json({
-        error: 'Issued Quantity should be greater than "0"'
+        message: 'Issued Quantity should be greater than "0"'
       });
     }
 
@@ -73,7 +73,7 @@ export const addEALIssuance = async (req, res) => {
     if (Number(issuedQuantity) !== (serialTo - serialFrom + 1)) {
       await session.abortTransaction();
       return res.status(400).json({
-        error: '"issuedQuantity" and the serials are not matching'
+        message: '"issuedQuantity" and the serials are not matching'
       });
     }
 
@@ -94,7 +94,7 @@ export const addEALIssuance = async (req, res) => {
     if (overlappingIssuance) {
       await session.abortTransaction();
       return res.status(400).json({
-        error: `Serial range [${serialFrom}-${serialTo}] with prefix "${prefix}" overlaps with an existing issuance from ${overlappingIssuance.serialFrom} to ${overlappingIssuance.serialTo}.`
+        message: `Serial range [${serialFrom}-${serialTo}] with prefix "${prefix}" overlaps with an existing issuance from ${overlappingIssuance.serialFrom} to ${overlappingIssuance.serialTo}.`
       });
     }
 
@@ -125,7 +125,7 @@ export const addEALIssuance = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error('Transaction failed:', error);
-    res.status(500).json({ error: error.message || 'Server Error' });
+    res.status(500).json({ message: error.message || 'Server Error' });
   }
 
 };
@@ -159,6 +159,6 @@ export const getAllEALIssuances = async (req, res) => {
         data: issuances
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch EAL Issuances', message: error.message });
+    res.status(500).json({ message: 'Failed to fetch EAL Issuances', message: error.message });
   }
 };

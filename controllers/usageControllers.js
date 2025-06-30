@@ -33,48 +33,48 @@ export const addEALUsage = async (req, res) => {
 
         if (!mongoose.Types.ObjectId.isValid(company) || !mongoose.Types.ObjectId.isValid(item) || !mongoose.Types.ObjectId.isValid(pack)) {
             await session.abortTransaction();
-            return res.status(400).json({ error: 'Invalid company or item or pack' });
+            return res.status(400).json({ message: 'Invalid company or item or pack' });
         }
 
         if (!company || !market || !pack || !item) {
             await session.abortTransaction();
             return res.status(400).json({
-                error: 'Please select all required fields'
+                message: 'Please select all required fields'
             });
         }
 
         if (!dateUsed || isNaN(new Date(dateUsed))) {
             await session.abortTransaction();
             return res.status(400).json({
-                error: 'Please enter the date correctly'
+                message: 'Please enter the date correctly'
             });
         }
 
         if (!/^[A-Z]{3}$/.test(prefix.trim())) {
             await session.abortTransaction();
             return res.status(400).json({
-                error: 'Prefix must be 3 uppercase letters (A-Z)'
+                message: 'Prefix must be 3 uppercase letters (A-Z)'
             });
         }
 
         if (!/^\d{10}$/.test(serialFrom)) {
             await session.abortTransaction();
             return res.status(400).json({
-                error: 'Serial From must be a 10-digit number'
+                message: 'Serial From must be a 10-digit number'
             });
         }
 
         if (!/^\d{10}$/.test(serialTo)) {
             await session.abortTransaction();
             return res.status(400).json({
-                error: 'Serial To must be a 10-digit number'
+                message: 'Serial To must be a 10-digit number'
             });
         }
 
         if (usedQuantity <= 0 || usedQuantity !== (serialToNum - serialFromNum + 1)) {
             await session.abortTransaction();
             return res.status(400).json({
-                error: 'Quantity Issued and the serial numbers are not matching'
+                message: 'Quantity Issued and the serial numbers are not matching'
             });
         }
 
@@ -88,14 +88,14 @@ export const addEALUsage = async (req, res) => {
         if (usedQuantity % bottlesPerCase !== 0 || (serialToNum % bottlesPerCase) !== 0 || ((serialFromNum - 1) %  bottlesPerCase) !== 0) {
             await session.abortTransaction();
             return res.status(400).json({
-                error: 'Serial range not divisible by bottles per case.'
+                message: 'Serial range not divisible by bottles per case.'
             });
         }
 
         if (parseInt(usedQuantityInCases) !== Math.floor(usedQuantity / bottlesPerCase) || parseInt(usedQuantityInCases) <= 0) {
             await session.abortTransaction();
             return res.status(400).json({
-                error: 'Used quantity does not match with the produced cases and it should be greater than zero'
+                message: 'Used quantity does not match with the produced cases and it should be greater than zero'
             });
         }
 
@@ -112,14 +112,14 @@ export const addEALUsage = async (req, res) => {
         if (!issuance) {
             await session.abortTransaction();
             return res.status(404).json({
-                error: 'Matching EAL Issuance not found'
+                message: 'Matching EAL Issuance not found'
             });
         }
         // Validate range is within the issued serial range
         if (serialFromNum < issuance.serialFrom || serialToNum > issuance.serialTo) {
             await session.abortTransaction();
             return res.status(400).json({
-                error: `Used range [${serialFromNum}-${serialToNum}] is outside issued range [${issuance.serialFrom}-${issuance.serialTo}]`
+                message: `Used range [${serialFromNum}-${serialToNum}] is outside issued range [${issuance.serialFrom}-${issuance.serialTo}]`
             });
         }
 
@@ -131,7 +131,7 @@ export const addEALUsage = async (req, res) => {
             const overlaps = serialFromNum <= existingTo && existingFrom <= serialToNum;
             if (overlaps) {
                 return res.status(400).json({
-                error: `Used range [${serialFromNum}-${serialToNum}] overlaps with already used range [${existingFrom}-${existingTo}]`
+                message: `Used range [${serialFromNum}-${serialToNum}] overlaps with already used range [${existingFrom}-${existingTo}]`
                 });
             }
         }
@@ -172,7 +172,7 @@ export const addEALUsage = async (req, res) => {
         await session.abortTransaction();
         session.endSession();
         console.error('Error in addEALUsage:', error);
-        res.status(500).json({ error: error.message || 'Internal server error' });
+        res.status(500).json({ message: error.message || 'Internal server error' });
     }
 };
 
