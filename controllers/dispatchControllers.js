@@ -99,26 +99,40 @@ export const updateDispatch = async (req, res) => {
     }
 
     try {
-    const updatedDispatch = await Dispatch.findByIdAndUpdate(
-      dispatchId,
-      { deliveryTo, dateDispatched, items, totalQuantity },
-      { new: true }
-    );
 
-    if (!updatedDispatch) {
-      return res.status(404).json({ error: 'Dispatch not found' });
+      // Step 1: Fetch dispatch to check its current status
+      const existingDispatch = await Dispatch.findById(dispatchId);
+
+      if (!existingDispatch) {
+        return res.status(404).json({ error: 'Dispatch not found' });
+      }
+
+      // Step 2: Ensure status is 'draft'
+      if (existingDispatch.status !== 'draft') {
+        return res.status(400).json({ error: 'Only draft dispatches can be updated' });
+      }
+
+      // Step 3: Proceed with update
+      const updatedDispatch = await Dispatch.findByIdAndUpdate(
+        dispatchId,
+        { deliveryTo, dateDispatched, items, totalQuantity },
+        { new: true }
+      );
+
+      if (!updatedDispatch) {
+        return res.status(404).json({ error: 'Dispatch not found' });
+      }
+
+      return res.status(200).json({
+        message: `Dispatch updated`,
+        data: updatedDispatch
+      });
+    } catch (error) {
+      console.error('Error updating dispatch status:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
     }
 
-    return res.status(200).json({
-      message: `Dispatch updated`,
-      data: updatedDispatch
-    });
-  } catch (error) {
-    console.error('Error updating dispatch status:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
-  }
-
-};
+  };
 
 /**
  * Update the status of an existing dispatch.
