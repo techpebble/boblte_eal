@@ -11,14 +11,14 @@ export const addEALIssuance = async (req, res) => {
   try {
     session.startTransaction();
     const {
-        company,
-        dateIssued,
-        market,
-        pack,
-        prefix,
-        serialFrom,
-        serialTo,
-        issuedQuantity
+      company,
+      dateIssued,
+      market,
+      pack,
+      prefix,
+      serialFrom,
+      serialTo,
+      issuedQuantity
     } = req.body;
 
     if (!company.trim()) {
@@ -100,15 +100,15 @@ export const addEALIssuance = async (req, res) => {
 
     // Create new issuance
     const issuance = new EALIssuance({
-        company,
-        dateIssued,
-        market,
-        pack,
-        prefix,
-        serialFrom,
-        serialTo,
-        issuedQuantity,
-        createdBy: userId
+      company,
+      dateIssued,
+      market,
+      pack,
+      prefix,
+      serialFrom,
+      serialTo,
+      issuedQuantity,
+      createdBy: userId
     });
 
     const savedIssuance = await issuance.save({ session });
@@ -140,13 +140,18 @@ export const getAllEALIssuances = async (req, res) => {
     // Optional query filters
     if (req.query.startDate && req.query.endDate) {
       filter.dateIssued = {
-          $gte: new Date(req.query.startDate),
-          $lte: new Date(new Date(req.query.endDate).setHours(23, 59, 59, 999)), // include full day
+        $gte: new Date(req.query.startDate),
+        $lte: new Date(new Date(req.query.endDate).setHours(23, 59, 59, 999)), // include full day
       };
     }
     if (req.query.company) filter.company = req.query.company;
     if (req.query.market) filter.market = req.query.market;
     if (req.query.prefix) filter.prefix = req.query.prefix;
+
+    // If query type is 'balance', only include records with balanceQuantity > 0
+    if (req.query.type && req.query.type.toLowerCase() === 'balance') {
+      filter.balanceQuantity = { $gt: 0 };
+    }
 
     const issuances = await EALIssuance.find(filter)
       .populate('company', 'name')
@@ -155,8 +160,8 @@ export const getAllEALIssuances = async (req, res) => {
       .sort({ dateIssued: -1 });
 
     res.status(200).json({
-        count: issuances.length,
-        data: issuances
+      count: issuances.length,
+      data: issuances
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch EAL Issuances', message: error.message });

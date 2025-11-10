@@ -85,7 +85,7 @@ export const addEALUsage = async (req, res) => {
         }
         const bottlesPerCase = itemData.bottlesPerCase;
 
-        if (usedQuantity % bottlesPerCase !== 0 || (serialToNum % bottlesPerCase) !== 0 || ((serialFromNum - 1) %  bottlesPerCase) !== 0) {
+        if (usedQuantity % bottlesPerCase !== 0 || (serialToNum % bottlesPerCase) !== 0 || ((serialFromNum - 1) % bottlesPerCase) !== 0) {
             await session.abortTransaction();
             return res.status(400).json({
                 message: 'Serial range not divisible by bottles per case.'
@@ -131,7 +131,7 @@ export const addEALUsage = async (req, res) => {
             const overlaps = serialFromNum <= existingTo && existingFrom <= serialToNum;
             if (overlaps) {
                 return res.status(400).json({
-                message: `Used range [${serialFromNum}-${serialToNum}] overlaps with already used range [${existingFrom}-${existingTo}]`
+                    message: `Used range [${serialFromNum}-${serialToNum}] overlaps with already used range [${existingFrom}-${existingTo}]`
                 });
             }
         }
@@ -156,7 +156,7 @@ export const addEALUsage = async (req, res) => {
         );
 
         // Append this usage range to the issuance's usedSerialRanges
-        issuance.usedSerialRanges.push({ serialFrom: serialFromNum, serialTo: serialToNum, total:usedQuantity});
+        issuance.usedSerialRanges.push({ serialFrom: serialFromNum, serialTo: serialToNum, total: usedQuantity });
         issuance.balanceQuantity = issuance.balanceQuantity - usedQuantity;
 
         await issuance.save({ session });
@@ -178,32 +178,37 @@ export const addEALUsage = async (req, res) => {
 
 // Get all EAL Usage records with optional filters
 export const getAllEALUsage = async (req, res) => {
-  try {
-    const filter = {};
+    try {
+        const filter = {};
 
-    // Optional query filters
-    if (req.query.startDate && req.query.endDate) {
-      filter.dateUsed = {
-          $gte: new Date(req.query.startDate),
-          $lte: new Date(new Date(req.query.endDate).setHours(23, 59, 59, 999)), // include full day
-      };
+        // Optional query filters
+        if (req.query.startDate && req.query.endDate) {
+            filter.dateUsed = {
+                $gte: new Date(req.query.startDate),
+                $lte: new Date(new Date(req.query.endDate).setHours(23, 59, 59, 999)), // include full day
+            };
+        }
+        if (req.query.company) filter.company = req.query.company;
+        if (req.query.market) filter.market = req.query.market;
+        if (req.query.prefix) filter.prefix = req.query.prefix;
+
+        // If query type is 'balance', only include records with balanceQuantityInCases > 0
+        if (req.query.type && req.query.type.toLowerCase() === 'balance') {
+            filter.balanceQuantityInCases = { $gt: 0 };
+        }
+
+        const usage = await EALUsage.find(filter)
+            .populate('company', 'name')
+            .populate('item', 'name')
+            .populate('pack', 'name bottlesPerCase')
+            .populate('createdBy', 'fullName email')
+            .sort({ dateUsed: -1 });
+
+        res.status(200).json({
+            count: usage.length,
+            data: usage
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch EAL Usage', message: error.message });
     }
-    if (req.query.company) filter.company = req.query.company;
-    if (req.query.market) filter.market = req.query.market;
-    if (req.query.prefix) filter.prefix = req.query.prefix;
-
-    const usage = await EALUsage.find(filter)
-      .populate('company', 'name')
-      .populate('item', 'name')
-      .populate('pack', 'name bottlesPerCase')
-      .populate('createdBy', 'fullName email')
-      .sort({ dateIssued: -1 });
-
-    res.status(200).json({
-        count: usage.length,
-        data: usage
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch EAL Usage', message: error.message });
-  }
 };

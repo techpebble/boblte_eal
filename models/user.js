@@ -7,14 +7,13 @@ const UserSchema = new mongoose.Schema({
   mobile: { type: String, required: true, unique: true },
   role: { type: String, enum: ['admin', 'storekeeper', 'production', 'dispatch'], required: true },
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies', required: true },
-  password: { type: String, required: true, select: false},
-  password: { type: String, required: true }, // Store hashed password
+  password: { type: String, required: true, select: false },
 }, { timestamps: true });
 
 
 // Hash password before saving
-UserSchema.pre("save", async function(next) {
-  if (!this.isModified("password")) return next(); 
+UserSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });

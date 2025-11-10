@@ -41,13 +41,15 @@ app.use('/api/v1/items', itemRoute);
 app.use("/api/v1/eal_issuance", issuanceRoutes);
 app.use("/api/v1/eal_usage", usageRoutes);
 app.use("/api/v1/dispatch", dispatchRoutes);
+
+// to be removed later
 app.use("/api/v1/eal_dispatch", dispatchRoutes);
 
 // Serve uploads folder
-app.use("/uploads", express.static(path.join(__dirname, "upload")));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT,()=> {
+app.listen(PORT, () => {
     console.log("Server running in port: " + PORT);
 });
 

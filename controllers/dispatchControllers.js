@@ -12,38 +12,38 @@ const validStatuses = ['draft', 'final', 'dispatched', 'delivered'];
 export const addDispatch = async (req, res) => {
   const userId = req.user.id;
   const {
-      company,
-      deliveryTo,
-      dateDispatched,
-      market,
-      items,
-      totalQuantity
-    } = req.body;
+    company,
+    deliveryTo,
+    dateDispatched,
+    market,
+    items,
+    totalQuantity
+  } = req.body;
 
   try {
     if (!company?.trim()) {
       return res.status(400).json({
-          error: 'Please select a Company'
+        error: 'Please select a Company'
       });
     }
     if (!market?.trim()) {
       return res.status(400).json({
-          error: 'Please select a Market'
+        error: 'Please select a Market'
       });
     }
     if (isNaN(Date.parse(dateDispatched))) {
       return res.status(400).json({
-          error: 'Please enter the date correctly'
+        error: 'Please enter the date correctly'
       });
     }
     if (!deliveryTo?.trim()) {
       return res.status(400).json({
-          error: 'Please select a delivery location'
+        error: 'Please select a delivery location'
       });
     }
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
-          error: 'Please add atleast one item'
+        error: 'Please add atleast one item'
       });
     }
 
@@ -72,67 +72,98 @@ export const updateDispatch = async (req, res) => {
   const userId = req.user.id;
   const { dispatchId } = req.params;
   const {
-      deliveryTo,
-      dateDispatched,
-      items,
-      totalQuantity
-    } = req.body;
+    deliveryTo,
+    dateDispatched,
+    items,
+    totalQuantity
+  } = req.body;
 
-    if (isNaN(Date.parse(dateDispatched))) {
-      return res.status(400).json({
-          error: 'Please enter the date correctly'
-      });
+  if (isNaN(Date.parse(dateDispatched))) {
+    return res.status(400).json({
+      error: 'Please enter the date correctly'
+    });
+  }
+  if (!deliveryTo?.trim()) {
+    return res.status(400).json({
+      error: 'Please select a delivery location'
+    });
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({
+      error: 'Please add atleast one item'
+    });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(dispatchId)) {
+    return res.status(400).json({ error: 'Invalid Dispatch ID' });
+  }
+
+  try {
+
+    // Step 1: Fetch dispatch to check its current status
+    const existingDispatch = await Dispatch.findById(dispatchId);
+
+    if (!existingDispatch) {
+      return res.status(404).json({ error: 'Dispatch not found' });
     }
-    if (!deliveryTo?.trim()) {
-      return res.status(400).json({
-          error: 'Please select a delivery location'
-      });
+
+    // Step 2: Ensure status is 'draft'
+    if (existingDispatch.status !== 'draft') {
+      return res.status(400).json({ error: 'Only draft dispatches can be updated' });
     }
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-          error: 'Please add atleast one item'
-      });
+
+    // Step 3: Proceed with update
+    const updatedDispatch = await Dispatch.findByIdAndUpdate(
+      dispatchId,
+      { deliveryTo, dateDispatched, items, totalQuantity },
+      { new: true }
+    );
+
+    if (!updatedDispatch) {
+      return res.status(404).json({ error: 'Dispatch not found' });
     }
+
+    return res.status(200).json({
+      message: `Dispatch updated`,
+      data: updatedDispatch
+    });
+  } catch (error) {
+    console.error('Error updating dispatch status:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+
+};
+
+export const deleteDispatch = async (req, res) => {
+  try {
+    const { dispatchId } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(dispatchId)) {
-      return res.status(400).json({ error: 'Invalid Dispatch ID' });
+      return res.status(400).json({ message: 'Invalid ID' });
+    }
+    // Step 1: Fetch dispatch to check its current status
+    const existingDispatch = await Dispatch.findById(dispatchId);
+
+    if (!existingDispatch) {
+      return res.status(404).json({ error: 'Dispatch not found' });
     }
 
-    try {
-
-      // Step 1: Fetch dispatch to check its current status
-      const existingDispatch = await Dispatch.findById(dispatchId);
-
-      if (!existingDispatch) {
-        return res.status(404).json({ error: 'Dispatch not found' });
-      }
-
-      // Step 2: Ensure status is 'draft'
-      if (existingDispatch.status !== 'draft') {
-        return res.status(400).json({ error: 'Only draft dispatches can be updated' });
-      }
-
-      // Step 3: Proceed with update
-      const updatedDispatch = await Dispatch.findByIdAndUpdate(
-        dispatchId,
-        { deliveryTo, dateDispatched, items, totalQuantity },
-        { new: true }
-      );
-
-      if (!updatedDispatch) {
-        return res.status(404).json({ error: 'Dispatch not found' });
-      }
-
-      return res.status(200).json({
-        message: `Dispatch updated`,
-        data: updatedDispatch
-      });
-    } catch (error) {
-      console.error('Error updating dispatch status:', error);
-      return res.status(500).json({ error: 'Internal Server Error' });
+    // Step 2: Ensure status is 'draft'
+    if (existingDispatch.status !== 'draft') {
+      return res.status(400).json({ error: 'Only draft dispatches can be deleted' });
     }
 
-  };
+    // Step 3: Proceed with deletion
+    const deletedDispatch = await Dispatch.findByIdAndDelete(dispatchId);
+    if (!deletedDispatch) {
+      return res.status(404).json({ message: 'Dispatch not found' });
+    }
+
+    res.json({ message: 'Dispatch deleted successfully', deletedDispatch });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 /**
  * Update the status of an existing dispatch.
@@ -150,11 +181,61 @@ export const updateDispatchStatus = async (req, res) => {
   }
 
   try {
-    const updatedDispatch = await Dispatch.findByIdAndUpdate(
-      dispatchId,
-      { status },
-      { new: true }
-    );
+
+    // Step 1: Fetch dispatch to check its current status
+    const existingDispatch = await Dispatch.findById(dispatchId);
+
+    if (!existingDispatch) {
+      return res.status(404).json({ error: 'Dispatch not found' });
+    }
+
+    // Step 2: Validate status transitions
+    let updatedDispatch;
+    if (existingDispatch.status === 'draft' && status === 'final') {
+      // Allow transition from 'draft' to 'final'
+      updatedDispatch = await Dispatch.findByIdAndUpdate(
+        dispatchId,
+        { status },
+        { new: true }
+      );
+    } else if (existingDispatch.status === 'final' && status === 'loaded') {
+      // Allow transition from 'final' to 'loaded'
+      updatedDispatch = await Dispatch.findByIdAndUpdate(
+        dispatchId,
+        { status },
+        { new: true }
+      );
+    } else if (existingDispatch.status === 'loaded' && status === 'dispatched') {
+      // Allow transition from 'loaded' to 'dispatched'
+      updatedDispatch = await Dispatch.findByIdAndUpdate(
+        dispatchId,
+        { status },
+        { new: true }
+      );
+    } else if (existingDispatch.status === 'dispatched' && status === 'delivered') {
+      // Allow transition from 'dispatched' to 'delivered'
+      updatedDispatch = await Dispatch.findByIdAndUpdate(
+        dispatchId,
+        { status },
+        { new: true }
+      );
+    } else if (existingDispatch.status === 'final' && existingDispatch.EALIssuedTotalQuantity === 0 && status === 'draft') {
+      // Allow transition from 'final' to 'draft' if no EAL linked
+      updatedDispatch = await Dispatch.findByIdAndUpdate(
+        dispatchId,
+        { status },
+        { new: true }
+      );
+    } else {
+      return res.status(400).json({ error: `Invalid status transition from '${existingDispatch.status}' to '${status}'` });
+    }
+
+    // Step 3: Proceed with update
+    // const updatedDispatch = await Dispatch.findByIdAndUpdate(
+    //   dispatchId,
+    //   { status },
+    //   { new: true }
+    // );
 
     if (!updatedDispatch) {
       return res.status(404).json({ error: 'Dispatch not found' });
@@ -180,7 +261,7 @@ export const addEALLinkToDispatchItem = async (req, res) => {
   try {
 
     session.startTransaction();
-    
+
     const {
       dispatchId,
       itemId,
@@ -318,7 +399,7 @@ export const addEALLinkToDispatchItem = async (req, res) => {
         .populate('deliveryTo', 'name')
         .populate({ path: 'items.item' })
         .populate('createdBy', 'fullName email')
-      });
+    });
 
   } catch (error) {
     await session.abortTransaction();
@@ -328,7 +409,7 @@ export const addEALLinkToDispatchItem = async (req, res) => {
   }
 };
 
-export const updateVehicleDetails =  async (req, res) => {
+export const updateVehicleDetails = async (req, res) => {
 
   try {
     const { dispatchId } = req.params;
@@ -349,7 +430,7 @@ export const updateVehicleDetails =  async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-  
+
 }
 
 /**
@@ -481,7 +562,45 @@ export const getAllDispatch = async (req, res) => {
       .populate('deliveryTo', 'name')
       .populate({ path: 'items.item' })
       .populate('createdBy', 'fullName email')
-      .sort({ dateIssued: -1 });
+      .sort({ dateDispatched: -1 });
+
+    return res.status(200).json({
+      count: dispatches.length,
+      data: dispatches
+    });
+
+  } catch (error) {
+    console.error('Failed to fetch dispatches:', error);
+    return res.status(500).json({
+      error: 'Failed to fetch Dispatches',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Get all eal dispatches with optional filters (date range, company, market).
+ */
+export const getAllEALDispatch = async (req, res) => {
+  try {
+    const filter = {};
+
+    // Optional filters
+    if (req.query.startDate && req.query.endDate) {
+      filter.dateDispatched = {
+        $gte: new Date(req.query.startDate),
+        $lte: new Date(new Date(req.query.endDate).setHours(23, 59, 59, 999))
+      };
+    }
+    if (req.query.company) filter.company = req.query.company;
+    if (req.query.market) filter.market = req.query.market;
+    if (req.query.dispatchId) filter.dispatchId = req.query.dispatchId;
+
+    const dispatches = await EALDispatch.find(filter)
+      .populate('company', 'name')
+      .populate('item', 'name')
+      .populate('createdBy', 'fullName email')
+      .sort({ createdAt: -1 });
 
     return res.status(200).json({
       count: dispatches.length,
