@@ -42,12 +42,14 @@ export const getAllItem = async (req, res) => {
         if (req.query.company) filter.company = req.query.company;
         if (req.query.market) filter.market = req.query.market;
         if (req.query.pack) filter.pack = req.query.pack;
-        if (req.query.isActive !== undefined) {
-            if (req.query.isActive === 'true') {
-                filter.isActive = { $ne: false };
-            } else if (req.query.isActive === 'false') {
-                filter.isActive = false;
-            }
+        // Status filter: defaults to active items only unless specified otherwise
+        if (req.query.isActive === 'all') {
+            // Return all items (active and inactive)
+        } else if (req.query.isActive === 'false') {
+            filter.isActive = false;
+        } else {
+            // Default (when no param is provided, or isActive=true): active items only
+            filter.isActive = { $ne: false };
         }
 
         const items = await Item.find(filter)
