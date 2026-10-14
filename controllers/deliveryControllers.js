@@ -9,7 +9,7 @@ export const addDelivery = async (req, res) => {
             !req.body.address
         ) {
             return res.status(400).send({
-                message: 'Send all required fileds'
+                message: 'Send all required fields'
             })
         }
 
@@ -41,19 +41,19 @@ export const getAllDelivery = async (req, res) => {
     }
 }
 
-// Get Company by ID
+// Get Delivery by ID
 export const getDeliveryByID = async (req, res) => {
     try {
         const { id } = req.params;
-        const company = await Company.findById(id);
-        return res.status(200).json(company);
+        const delivery = await Delivery.findById(id);
+        return res.status(200).json(delivery);
     } catch (error) {
         console.log(error.message);
         res.status(500).send({message: error.message});
     }
 }
 
-// Update Company by ID
+// Update Delivery by ID
 export const updateDeliveryByID = async (req, res) => {
     try {
         if (
@@ -62,15 +62,15 @@ export const updateDeliveryByID = async (req, res) => {
             !req.body.address
         ) {
             return res.status(400).send({
-                message: 'Send all required fileds'
+                message: 'Send all required fields'
             })
         }
 
         const { id } = req.params;
-        const result = await Company.findByIdAndUpdate(id, req.body, { new: true });
+        const result = await Delivery.findByIdAndUpdate(id, req.body, { new: true });
         
         if (!result) {
-            return res.status(404).json({message: "Book not found"});
+            return res.status(404).json({message: "Delivery depot not found"});
         }
 
         return res.status(200).json(result);

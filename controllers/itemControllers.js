@@ -5,11 +5,11 @@ export const addItem = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const {itemCode, name, description, pack, market, bottlesPerCase, brand, company} = req.body;
-        
-        // Validation: check for missing filelds
+        const { itemCode, name, description, pack, market, bottlesPerCase, brand, company } = req.body;
+
+        // Validation: check for missing fields
         if (!itemCode || !name || !description || !pack || !market || !bottlesPerCase || !brand || !company) {
-            return res.status(400).send({ message: 'Send all required fileds'})
+            return res.status(400).send({ message: 'Send all required fields' })
         }
 
         const item = await Item.create({
@@ -28,7 +28,7 @@ export const addItem = async (req, res) => {
 
     } catch (error) {
         console.log(error.message);
-        res.status(500).send({message: error.message});
+        res.status(500).send({ message: error.message });
     }
 }
 
@@ -43,13 +43,15 @@ export const getAllItem = async (req, res) => {
         if (req.query.pack) filter.pack = req.query.pack;
 
         const items = await Item.find(filter)
+            .populate('company', 'name')
+            .populate('pack', 'name bottlesPerCase');
         return res.status(200).json({
             count: items.length,
             data: items
         });
     } catch (error) {
         console.log(error.message);
-        res.status(500).send({message: error.message});
+        res.status(500).send({ message: error.message });
     }
 }
 
@@ -57,34 +59,36 @@ export const getAllItem = async (req, res) => {
 export const getItemByID = async (req, res) => {
     try {
         const { id } = req.params;
-        const item = await Item.findById(id);
+        const item = await Item.findById(id)
+            .populate('company', 'name')
+            .populate('pack', 'name bottlesPerCase');
         return res.status(200).json(item);
     } catch (error) {
         console.log(error.message);
-        res.status(500).send({message: error.message});
+        res.status(500).send({ message: error.message });
     }
 }
 
 // Update Item by ID
 export const updateItemByID = async (req, res) => {
     try {
-        const {itemCode, name, description, pack, bottlesPerCase, brand, company} = req.body;
-        
-        // Validation: check for missing filelds
+        const { itemCode, name, description, pack, bottlesPerCase, brand, company } = req.body;
+
+        // Validation: check for missing fields
         if (!itemCode || !name || !description || !pack || !bottlesPerCase || !brand || !company) {
-            return res.status(400).send({ message: 'Send all required fileds'})
+            return res.status(400).send({ message: 'Send all required fields' })
         }
 
         const { id } = req.params;
         const result = await Item.findByIdAndUpdate(id, req.body, { new: true });
-        
+
         if (!result) {
-            return res.status(404).json({message: "Item not found"});
+            return res.status(404).json({ message: "Item not found" });
         }
 
         return res.status(200).json(result);
     } catch (error) {
         console.log(error.message);
-        res.status(500).send({message: error.message});
+        res.status(500).send({ message: error.message });
     }
 }
