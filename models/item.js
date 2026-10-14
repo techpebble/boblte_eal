@@ -9,6 +9,7 @@ const ItemSchema = new mongoose.Schema({
   bottlesPerCase: { type: Number, required: true },
   brand: { type: String, required: true },
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies', required: true },
+  isActive: { type: Boolean, default: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'users', required: true }
 }, { timestamps: true });
 

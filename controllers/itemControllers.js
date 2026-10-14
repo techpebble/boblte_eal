@@ -5,7 +5,7 @@ export const addItem = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const { itemCode, name, description, pack, market, bottlesPerCase, brand, company } = req.body;
+        const { itemCode, name, description, pack, market, bottlesPerCase, brand, company, isActive } = req.body;
 
         // Validation: check for missing fields
         if (!itemCode || !name || !description || !pack || !market || !bottlesPerCase || !brand || !company) {
@@ -21,6 +21,7 @@ export const addItem = async (req, res) => {
             bottlesPerCase,
             brand,
             company,
+            isActive: typeof isActive === 'boolean' ? isActive : true,
             createdBy: userId
         });
 
@@ -41,6 +42,13 @@ export const getAllItem = async (req, res) => {
         if (req.query.company) filter.company = req.query.company;
         if (req.query.market) filter.market = req.query.market;
         if (req.query.pack) filter.pack = req.query.pack;
+        if (req.query.isActive !== undefined) {
+            if (req.query.isActive === 'true') {
+                filter.isActive = { $ne: false };
+            } else if (req.query.isActive === 'false') {
+                filter.isActive = false;
+            }
+        }
 
         const items = await Item.find(filter)
             .populate('company', 'name')
@@ -80,7 +88,38 @@ export const updateItemByID = async (req, res) => {
         }
 
         const { id } = req.params;
-        const result = await Item.findByIdAndUpdate(id, req.body, { new: true });
+        const result = await Item.findByIdAndUpdate(id, req.body, { new: true })
+            .populate('company', 'name')
+            .populate('pack', 'name bottlesPerCase');
+
+        if (!result) {
+            return res.status(404).json({ message: "Item not found" });
+        }
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.log(error.message);
+        res.status(500).send({ message: error.message });
+    }
+}
+
+// Update Item Status (Active / Inactive)
+export const updateItemStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isActive } = req.body;
+
+        if (typeof isActive !== 'boolean') {
+            return res.status(400).send({ message: 'isActive boolean is required' });
+        }
+
+        const result = await Item.findByIdAndUpdate(
+            id,
+            { isActive },
+            { new: true }
+        )
+            .populate('company', 'name')
+            .populate('pack', 'name bottlesPerCase');
 
         if (!result) {
             return res.status(404).json({ message: "Item not found" });
