@@ -199,7 +199,7 @@ export const getAllEALUsage = async (req, res) => {
 
         const usage = await EALUsage.find(filter)
             .populate('company', 'name')
-            .populate('item', 'name')
+            .populate('item', 'name alias')
             .populate('pack', 'name bottlesPerCase')
             .populate('createdBy', 'fullName email')
             .sort({ dateUsed: -1 });

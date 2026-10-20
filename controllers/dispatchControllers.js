@@ -621,7 +621,7 @@ export const getAllEALDispatch = async (req, res) => {
 
     const dispatches = await EALDispatch.find(filter)
       .populate('company', 'name')
-      .populate('item', 'name')
+      .populate('item', 'name alias')
       .populate('createdBy', 'fullName email')
       .sort({ createdAt: -1 });
 

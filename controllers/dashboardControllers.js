@@ -319,7 +319,7 @@ export const getDashboardData = async (req, res) => {
         ? EALUsage.find({ ...scope, ...inPeriod('dateUsed') })
           .populate('company', 'name')
           .populate('pack', 'name bottlesPerCase')
-          .populate('item', 'name')
+          .populate('item', 'name alias')
           .populate('createdBy', 'fullName')
           .sort({ dateUsed: -1, createdAt: -1 })
           .limit(movementLimit)
@@ -329,7 +329,7 @@ export const getDashboardData = async (req, res) => {
         ? EALDispatch.find({ ...scope, ...inPeriod('dateDispatched') })
           .populate('company', 'name')
           .populate('pack', 'name bottlesPerCase')
-          .populate('item', 'name')
+          .populate('item', 'name alias')
           .populate('createdBy', 'fullName')
           .sort({ dateDispatched: -1, createdAt: -1 })
           .limit(movementLimit)
@@ -380,7 +380,7 @@ export const getDashboardData = async (req, res) => {
         recordedAt: row.createdAt,
         company: row.company?.name || null,
         pack: packOf(row),
-        item: row.item?.name || null,
+        item: row.item?.alias?.trim() || row.item?.name || null,
         market: row.market,
         ...serialRange(row),
         quantity: row.usedQuantity,
@@ -395,7 +395,7 @@ export const getDashboardData = async (req, res) => {
         recordedAt: row.createdAt,
         company: row.company?.name || null,
         pack: packOf(row),
-        item: row.item?.name || null,
+        item: row.item?.alias?.trim() || row.item?.name || null,
         market: row.market,
         ...serialRange(row),
         quantity: row.usedQuantity,

@@ -55,7 +55,7 @@ export const getEALData = async (req, res) => {
         })
             .populate('company', 'name')
             .populate('pack', 'name bottlesPerCase')
-            .populate('item', 'name')
+            .populate('item', 'name alias')
             .populate('createdBy', 'fullName email');
 
         // Find all eal dispatch records that contain the serial
@@ -65,7 +65,7 @@ export const getEALData = async (req, res) => {
             serialTo: { $gte: serial }
         })
             .populate('company', 'name')
-            .populate('item', 'name')
+            .populate('item', 'name alias')
             .populate('pack', 'name bottlesPerCase')
             .populate('createdBy', 'fullName email');
 

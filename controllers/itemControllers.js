@@ -5,7 +5,7 @@ export const addItem = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const { itemCode, name, description, pack, market, bottlesPerCase, brand, company, isActive } = req.body;
+        const { itemCode, name, alias, description, pack, market, bottlesPerCase, brand, company, isActive } = req.body;
 
         // Validation: check for missing fields
         if (!itemCode || !name || !description || !pack || !market || !bottlesPerCase || !brand || !company) {
@@ -15,6 +15,7 @@ export const addItem = async (req, res) => {
         const item = await Item.create({
             itemCode,
             name,
+            alias,
             description,
             pack,
             market,
