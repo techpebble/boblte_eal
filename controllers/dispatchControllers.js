@@ -4,7 +4,7 @@ import EALUsage from "../models/eal_usages.js";
 import EALDispatch from "../models/eal_dispatches.js";
 import Item from "../models/item.js";
 
-const validStatuses = ['draft', 'final', 'dispatched', 'delivered'];
+const validStatuses = ['draft', 'final', 'loaded', 'dispatched', 'delivered'];
 
 /**
  * Create a new dispatch record.
@@ -199,7 +199,30 @@ export const updateDispatchStatus = async (req, res) => {
         { new: true }
       );
     } else if (existingDispatch.status === 'final' && status === 'loaded') {
-      // Allow transition from 'final' to 'loaded'
+      // Allow transition from 'final' to 'loaded' only when every line is fully
+      // EAL linked. Case counts are derived by division, so compare with tolerance.
+      const shortLines = existingDispatch.items.filter(
+        (i) => (i.EALIssuedQuantity || 0) + 1e-6 < i.quantityInCases
+      );
+
+      if (shortLines.length > 0) {
+        const shortfallInCases = shortLines.reduce(
+          (sum, i) => sum + (i.quantityInCases - (i.EALIssuedQuantity || 0)),
+          0
+        );
+
+        return res.status(400).json({
+          error: `Cannot mark as loaded: ${shortfallInCases} case(s) across ${shortLines.length} line(s) have no EAL linked.`,
+          shortfallInCases,
+          lines: shortLines.map((i) => ({
+            item: i.item,
+            quantityInCases: i.quantityInCases,
+            EALIssuedQuantity: i.EALIssuedQuantity || 0,
+            shortfallInCases: i.quantityInCases - (i.EALIssuedQuantity || 0)
+          }))
+        });
+      }
+
       updatedDispatch = await Dispatch.findByIdAndUpdate(
         dispatchId,
         { status },
