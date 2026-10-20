@@ -1,4 +1,5 @@
 import EALIssuance from "../models/eal_issuances.js";
+import EALUsage from "../models/eal_usages.js";
 import mongoose from 'mongoose';
 
 /**
@@ -165,5 +166,63 @@ export const getAllEALIssuances = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch EAL Issuances', message: error.message });
+  }
+};
+
+/**
+ * Remove an EAL issuance, but only while none of it has been used.
+ *
+ * Three separate things have to agree that it is untouched: no usage record
+ * points at it, it carries no used serial ranges, and its balance still
+ * equals the quantity issued. They should always agree; if they do not,
+ * something is already wrong and removing the issuance would hide it, so the
+ * request is refused on any one of them.
+ */
+export const deleteEALIssuance = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid EAL issuance ID' });
+    }
+
+    const issuance = await EALIssuance.findById(id);
+
+    if (!issuance) {
+      return res.status(404).json({ message: 'EAL issuance not found' });
+    }
+
+    const usageRecords = await EALUsage.countDocuments({ issuanceId: id });
+    const usedRanges = issuance.usedSerialRanges?.length || 0;
+    const balance = issuance.balanceQuantity ?? issuance.issuedQuantity;
+    const usedQuantity = issuance.issuedQuantity - balance;
+
+    if (usageRecords > 0 || usedRanges > 0 || usedQuantity > 0) {
+      const reasons = [];
+      if (usedQuantity > 0) reasons.push(`${usedQuantity} label(s) already applied`);
+      if (usageRecords > 0) {
+        reasons.push(`${usageRecords} production entr${usageRecords === 1 ? 'y' : 'ies'} recorded against it`);
+      }
+      if (usedQuantity <= 0 && usageRecords === 0 && usedRanges > 0) {
+        reasons.push(`${usedRanges} used range(s) recorded against it`);
+      }
+
+      return res.status(400).json({
+        error: `This issuance cannot be removed: ${reasons.join(', ')}.`,
+        usedQuantity,
+        usageRecords,
+        usedRanges
+      });
+    }
+
+    await EALIssuance.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      message: 'EAL issuance removed successfully',
+      data: { id }
+    });
+  } catch (error) {
+    console.error('Failed to delete EAL issuance:', error);
+    return res.status(500).json({ message: error.message });
   }
 };
