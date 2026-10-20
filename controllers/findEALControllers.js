@@ -35,7 +35,11 @@ export const getEALData = async (req, res) => {
             ...filter,
             serialFrom: { $lte: serial },
             serialTo: { $gte: serial }
-        }).populate('createdBy', 'fullName email').sort({ dateIssued: -1 });
+        })
+            .populate('company', 'name')
+            .populate('pack', 'name bottlesPerCase')
+            .populate('createdBy', 'fullName email')
+            .sort({ dateIssued: -1 });
 
         if (!issuances || issuances.length === 0) {
             return res.status(404).json({
@@ -48,19 +52,29 @@ export const getEALData = async (req, res) => {
             ...filter,
             serialFrom: { $lte: serial },
             serialTo: { $gte: serial }
-        }).populate('createdBy', 'fullName email').populate('item', 'name');
+        })
+            .populate('company', 'name')
+            .populate('pack', 'name bottlesPerCase')
+            .populate('item', 'name')
+            .populate('createdBy', 'fullName email');
 
         // Find all eal dispatch records that contain the serial
         const ealDispatches = await EALDispatch.find({
             ...filter,
             serialFrom: { $lte: serial },
             serialTo: { $gte: serial }
-        }).populate('createdBy', 'fullName email');
+        })
+            .populate('company', 'name')
+            .populate('item', 'name')
+            .populate('pack', 'name bottlesPerCase')
+            .populate('createdBy', 'fullName email');
 
         // If there are dispatches, fetch the related Dispatch documents (may be multiple)
         const dispatchIds = Array.from(new Set(ealDispatches.map(d => String(d.dispatchId)).filter(Boolean)));
         const dispatches = dispatchIds.length > 0
             ? await Dispatch.find({ _id: { $in: dispatchIds } })
+                .populate('company', 'name')
+                .populate('deliveryTo', 'name')
             : [];
 
         // Build response arrays
