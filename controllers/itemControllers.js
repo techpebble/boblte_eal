@@ -12,6 +12,12 @@ export const addItem = async (req, res) => {
             return res.status(400).send({ message: 'Send all required fields' })
         }
 
+        // Every table, picker and the mobile app leads with the short name, so
+        // an item without one would show a blank where its name should be.
+        if (!alias || !String(alias).trim()) {
+            return res.status(400).send({ message: 'A short name (alias) is required' })
+        }
+
         const item = await Item.create({
             itemCode,
             name,
