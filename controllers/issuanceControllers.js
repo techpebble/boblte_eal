@@ -224,6 +224,25 @@ export const deleteEALIssuance = async (req, res) => {
       return res.status(404).json({ message: 'EAL issuance not found' });
     }
 
+    // The caller has to name the range it means to remove, the same way a
+    // usage removal does. It makes the removal deliberate, and it catches an
+    // id that has moved on since the page was loaded.
+    const { serialFrom, serialTo } = req.body || {};
+
+    if (serialFrom == null || serialTo == null || serialFrom === '' || serialTo === '') {
+      return res.status(400).json({
+        error: 'Confirm the serial range to remove this issuance'
+      });
+    }
+
+    if (Number(serialFrom) !== issuance.serialFrom || Number(serialTo) !== issuance.serialTo) {
+      return res.status(400).json({
+        error: `The range given does not match this issuance. It runs ${issuance.prefix}${String(issuance.serialFrom).padStart(10, '0')} to ${issuance.prefix}${String(issuance.serialTo).padStart(10, '0')}.`,
+        expected: { serialFrom: issuance.serialFrom, serialTo: issuance.serialTo },
+        received: { serialFrom: Number(serialFrom), serialTo: Number(serialTo) }
+      });
+    }
+
     const usageRecords = await EALUsage.countDocuments({ issuanceId: id });
     const usedRanges = issuance.usedSerialRanges?.length || 0;
     const balance = issuance.balanceQuantity ?? issuance.issuedQuantity;
