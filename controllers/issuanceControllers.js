@@ -1,5 +1,6 @@
 import EALIssuance from "../models/eal_issuances.js";
 import EALUsage from "../models/eal_usages.js";
+import Pack from "../models/pack.js";
 import mongoose from 'mongoose';
 
 /**
@@ -75,6 +76,37 @@ export const addEALIssuance = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         message: '"issuedQuantity" and the serials are not matching'
+      });
+    }
+
+    // A range has to come out as whole cases. Labels that leave a part case
+    // can never be fully drawn down, because usage and dispatch both insist on
+    // whole cases, so the remainder would sit in stock for good.
+    const packData = await Pack.findById(pack).session(session);
+
+    if (!packData) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Pack not found' });
+    }
+
+    const bottlesPerCase = packData.bottlesPerCase;
+    const labels = Number(issuedQuantity);
+
+    if (!bottlesPerCase || bottlesPerCase <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        message: `Pack "${packData.name}" has no bottles-per-case set, so cases cannot be worked out`
+      });
+    }
+
+    if (labels % bottlesPerCase !== 0) {
+      await session.abortTransaction();
+      const cases = labels / bottlesPerCase;
+      return res.status(400).json({
+        message: `${labels} labels is ${cases.toFixed(2)} cases at ${bottlesPerCase} per case. A range must come out as whole cases — the nearest are ${Math.floor(cases) * bottlesPerCase} and ${Math.ceil(cases) * bottlesPerCase} labels.`,
+        labels,
+        bottlesPerCase,
+        cases
       });
     }
 
