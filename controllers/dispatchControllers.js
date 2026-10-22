@@ -5,6 +5,7 @@ import EALDispatch from "../models/eal_dispatches.js";
 import Item from "../models/item.js";
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
+import { linkRefusal } from '../utils/linkWindow.js';
 
 const validStatuses = ['draft', 'final', 'loaded', 'dispatched', 'delivered'];
 
@@ -323,6 +324,14 @@ export const addEALLinkToDispatchItem = async (req, res) => {
       return res.status(404).json({ message: 'Dispatch not found' });
     }
 
+    // Only while the note is Final. A draft's lines can still change, and a
+    // loaded one has already been checked against the lorry.
+    const stageRefusal = linkRefusal(dispatch.status);
+    if (stageRefusal) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: stageRefusal });
+    }
+
     const itemRef = dispatch.items.find(i => i.item.toString() === itemId);
     if (!itemRef) {
       await session.abortTransaction();
@@ -485,6 +494,12 @@ export const unlinkEALFromDispatchItem = async (req, res) => {
     if (!dispatch) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Dispatch not found' });
+    }
+
+    const stageRefusal = linkRefusal(dispatch.status, { unlinking: true });
+    if (stageRefusal) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: stageRefusal });
     }
 
     const item = dispatch.items.find(i => i.item.toString() === itemId);
