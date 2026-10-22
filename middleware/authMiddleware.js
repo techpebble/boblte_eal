@@ -22,6 +22,12 @@ export const protect = async (req, res, next) => {
             return res.status(401).json({ message: "Not authorised, user no longer exists" });
         }
 
+        // Tokens last a year, so switching an account off has to stop it being
+        // used straight away rather than whenever the token expires.
+        if (req.user.isActive === false) {
+            return res.status(403).json({ message: "This account has been switched off" });
+        }
+
         next();
     } catch (error) {
         res.status(401).json({message: "Not authorised, token failed"})

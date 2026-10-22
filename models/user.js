@@ -9,6 +9,9 @@ const UserSchema = new mongoose.Schema({
   // before the change is kept in legacyRole rather than thrown away.
   role: { type: mongoose.Schema.Types.ObjectId, ref: 'roles', required: true },
   legacyRole: { type: String },
+  // Switched off rather than deleted: a user's name is on every record they
+  // ever posted, and removing the row would leave those pointing at nothing.
+  isActive: { type: Boolean, default: true },
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies', required: true },
   password: { type: String, required: true, select: false },
 }, { timestamps: true });

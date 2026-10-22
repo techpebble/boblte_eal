@@ -10,6 +10,8 @@ import issuanceRoutes from './routes/issuanceRoutes.js';
 import usageRoutes from './routes/usageRoutes.js';
 import dispatchRoutes from './routes/dispatchRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import roleRoutes from './routes/roleRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 import cors from "cors";
 
 import path from "path";
@@ -33,6 +35,8 @@ app.use(express.json());
 connectDB();
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/roles", roleRoutes);
+app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use('/api/v1/companies', companyRoute);
 app.use('/api/v1/packs', packRoute);
