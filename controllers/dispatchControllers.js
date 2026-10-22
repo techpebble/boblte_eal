@@ -6,8 +6,8 @@ import Item from "../models/item.js";
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
 import { linkRefusal } from '../utils/linkWindow.js';
+import { transitionRefusal } from '../utils/stageTransition.js';
 
-const validStatuses = ['draft', 'final', 'loaded', 'dispatched', 'delivered'];
 
 /**
  * Create a new dispatch record.
@@ -185,10 +185,6 @@ export const updateDispatchStatus = async (req, res) => {
     return res.status(400).json({ error: 'Invalid Dispatch ID' });
   }
 
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ error: `Invalid status. Allowed: ${validStatuses.join(', ')}` });
-  }
-
   try {
 
     // Step 1: Fetch dispatch to check its current status
@@ -198,76 +194,16 @@ export const updateDispatchStatus = async (req, res) => {
       return res.status(404).json({ error: 'Dispatch not found' });
     }
 
-    // Step 2: Validate status transitions
-    let updatedDispatch;
-    if (existingDispatch.status === 'draft' && status === 'final') {
-      // Allow transition from 'draft' to 'final'
-      updatedDispatch = await Dispatch.findByIdAndUpdate(
-        dispatchId,
-        { status },
-        { new: true }
-      );
-    } else if (existingDispatch.status === 'final' && status === 'loaded') {
-      // Allow transition from 'final' to 'loaded' only when every line is fully
-      // EAL linked. Case counts are derived by division, so compare with tolerance.
-      const shortLines = existingDispatch.items.filter(
-        (i) => (i.EALIssuedQuantity || 0) + 1e-6 < i.quantityInCases
-      );
+    // Step 2: the transition rules, which the vehicle route now shares.
+    const refusal = transitionRefusal(existingDispatch, status);
+    if (refusal) return res.status(400).json(refusal);
 
-      if (shortLines.length > 0) {
-        const shortfallInCases = shortLines.reduce(
-          (sum, i) => sum + (i.quantityInCases - (i.EALIssuedQuantity || 0)),
-          0
-        );
+    const updatedDispatch = await Dispatch.findByIdAndUpdate(
+      dispatchId,
+      { status },
+      { new: true }
+    );
 
-        return res.status(400).json({
-          error: `Cannot mark as loaded: ${shortfallInCases} case(s) across ${shortLines.length} line(s) have no EAL linked.`,
-          shortfallInCases,
-          lines: shortLines.map((i) => ({
-            item: i.item,
-            quantityInCases: i.quantityInCases,
-            EALIssuedQuantity: i.EALIssuedQuantity || 0,
-            shortfallInCases: i.quantityInCases - (i.EALIssuedQuantity || 0)
-          }))
-        });
-      }
-
-      updatedDispatch = await Dispatch.findByIdAndUpdate(
-        dispatchId,
-        { status },
-        { new: true }
-      );
-    } else if (existingDispatch.status === 'loaded' && status === 'dispatched') {
-      // Allow transition from 'loaded' to 'dispatched'
-      updatedDispatch = await Dispatch.findByIdAndUpdate(
-        dispatchId,
-        { status },
-        { new: true }
-      );
-    } else if (existingDispatch.status === 'dispatched' && status === 'delivered') {
-      // Allow transition from 'dispatched' to 'delivered'
-      updatedDispatch = await Dispatch.findByIdAndUpdate(
-        dispatchId,
-        { status },
-        { new: true }
-      );
-    } else if (existingDispatch.status === 'final' && existingDispatch.EALIssuedTotalQuantity === 0 && status === 'draft') {
-      // Allow transition from 'final' to 'draft' if no EAL linked
-      updatedDispatch = await Dispatch.findByIdAndUpdate(
-        dispatchId,
-        { status },
-        { new: true }
-      );
-    } else {
-      return res.status(400).json({ error: `Invalid status transition from '${existingDispatch.status}' to '${status}'` });
-    }
-
-    // Step 3: Proceed with update
-    // const updatedDispatch = await Dispatch.findByIdAndUpdate(
-    //   dispatchId,
-    //   { status },
-    //   { new: true }
-    // );
 
     if (!updatedDispatch) {
       return res.status(404).json({ error: 'Dispatch not found' });
@@ -455,11 +391,23 @@ export const updateVehicleDetails = async (req, res) => {
     const { dispatchId } = req.params;
     const { vehicleNumber, driverName, driverContact, status } = req.body;
 
+    // This wrote whatever status it was handed. The stage rules lived in the
+    // status route alone, so a note could be walked past them by saving the
+    // vehicle details instead.
+    const existing = await Dispatch.findOne({ _id: dispatchId, ...companyScope(req) });
+    if (!existing) return res.status(404).json({ message: 'Dispatch not found' });
+
+    // Leaving the stage out means leaving it alone.
+    const nextStatus = status ?? existing.status;
+
+    const refusal = transitionRefusal(existing, nextStatus);
+    if (refusal) return res.status(400).json(refusal);
+
     const updatedDispatch = await Dispatch.findOneAndUpdate(
       { _id: dispatchId, ...companyScope(req) },
       {
         vehicleDetails: { vehicleNumber, driverName, driverContact },
-        status: status
+        status: nextStatus
       },
       { new: true }
     );
