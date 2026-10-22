@@ -4,6 +4,7 @@ import EALUsage from "../models/eal_usages.js";
 import EALDispatch from "../models/eal_dispatches.js";
 import Item from "../models/item.js";
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
+import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
 
 const validStatuses = ['draft', 'final', 'loaded', 'dispatched', 'delivered'];
 
@@ -27,6 +28,12 @@ export const addDispatch = async (req, res) => {
         error: 'Please select a Company'
       });
     }
+
+    const refusal = companyRefusal(req, company);
+    if (refusal) {
+      return res.status(403).json({ message: refusal });
+    }
+
     if (!market?.trim()) {
       return res.status(400).json({
         error: 'Please select a Market'
@@ -102,7 +109,7 @@ export const updateDispatch = async (req, res) => {
   try {
 
     // Step 1: Fetch dispatch to check its current status
-    const existingDispatch = await Dispatch.findById(dispatchId);
+    const existingDispatch = await Dispatch.findOne({ _id: dispatchId, ...companyScope(req) });
 
     if (!existingDispatch) {
       return res.status(404).json({ error: 'Dispatch not found' });
@@ -143,7 +150,7 @@ export const deleteDispatch = async (req, res) => {
       return res.status(400).json({ message: 'Invalid ID' });
     }
     // Step 1: Fetch dispatch to check its current status
-    const existingDispatch = await Dispatch.findById(dispatchId);
+    const existingDispatch = await Dispatch.findOne({ _id: dispatchId, ...companyScope(req) });
 
     if (!existingDispatch) {
       return res.status(404).json({ error: 'Dispatch not found' });
@@ -184,7 +191,7 @@ export const updateDispatchStatus = async (req, res) => {
   try {
 
     // Step 1: Fetch dispatch to check its current status
-    const existingDispatch = await Dispatch.findById(dispatchId);
+    const existingDispatch = await Dispatch.findOne({ _id: dispatchId, ...companyScope(req) });
 
     if (!existingDispatch) {
       return res.status(404).json({ error: 'Dispatch not found' });
@@ -310,7 +317,7 @@ export const addEALLinkToDispatchItem = async (req, res) => {
       return res.status(400).json({ message: 'serialTo must be >= serialFrom' });
     }
 
-    const dispatch = await Dispatch.findById(dispatchId).session(session);
+    const dispatch = await Dispatch.findOne({ _id: dispatchId, ...companyScope(req) }).session(session);
     if (!dispatch) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Dispatch not found' });
@@ -439,8 +446,8 @@ export const updateVehicleDetails = async (req, res) => {
     const { dispatchId } = req.params;
     const { vehicleNumber, driverName, driverContact, status } = req.body;
 
-    const updatedDispatch = await Dispatch.findByIdAndUpdate(
-      dispatchId,
+    const updatedDispatch = await Dispatch.findOneAndUpdate(
+      { _id: dispatchId, ...companyScope(req) },
       {
         vehicleDetails: { vehicleNumber, driverName, driverContact },
         status: status
@@ -474,7 +481,7 @@ export const unlinkEALFromDispatchItem = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    const dispatch = await Dispatch.findById(dispatchId).session(session);
+    const dispatch = await Dispatch.findOne({ _id: dispatchId, ...companyScope(req) }).session(session);
     if (!dispatch) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Dispatch not found' });
@@ -581,6 +588,10 @@ export const getAllDispatch = async (req, res) => {
     if (req.query.company) filter.company = req.query.company;
     if (req.query.market) filter.market = req.query.market;
 
+    // Without companies:all a person sees only their own company, whatever
+    // the query asked for.
+    Object.assign(filter, companyScope(req));
+
     const dispatches = await Dispatch.find(filter)
       .populate('company', 'name')
       .populate('deliveryTo', 'name')
@@ -619,6 +630,10 @@ export const getAllEALDispatch = async (req, res) => {
     if (req.query.company) filter.company = req.query.company;
     if (req.query.market) filter.market = req.query.market;
     if (req.query.dispatchId) filter.dispatchId = req.query.dispatchId;
+
+    // Without companies:all a person sees only their own company, whatever
+    // the query asked for.
+    Object.assign(filter, companyScope(req));
 
     const dispatches = await EALDispatch.find(filter)
       .populate('company', 'name')

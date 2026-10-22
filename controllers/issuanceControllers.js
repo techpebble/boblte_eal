@@ -3,6 +3,7 @@ import EALUsage from "../models/eal_usages.js";
 import Pack from "../models/pack.js";
 import mongoose from 'mongoose';
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
+import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
 
 /**
  * Add EAL issuance and generate EAL labels
@@ -28,6 +29,12 @@ export const addEALIssuance = async (req, res) => {
       return res.status(400).json({
         message: 'Please select a Company'
       });
+    }
+
+    const refusal = companyRefusal(req, company);
+    if (refusal) {
+      await session.abortTransaction();
+      return res.status(403).json({ message: refusal });
     }
 
     if (!market.trim()) {
@@ -187,6 +194,10 @@ export const getAllEALIssuances = async (req, res) => {
       filter.balanceQuantity = { $gt: 0 };
     }
 
+    // Without companies:all a person sees only their own company, whatever
+    // the query asked for.
+    Object.assign(filter, companyScope(req));
+
     const issuances = await EALIssuance.find(filter)
       .populate('company', 'name')
       .populate('pack', 'name bottlesPerCase')
@@ -219,7 +230,7 @@ export const deleteEALIssuance = async (req, res) => {
       return res.status(400).json({ message: 'Invalid EAL issuance ID' });
     }
 
-    const issuance = await EALIssuance.findById(id);
+    const issuance = await EALIssuance.findOne({ _id: id, ...companyScope(req) });
 
     if (!issuance) {
       return res.status(404).json({ message: 'EAL issuance not found' });

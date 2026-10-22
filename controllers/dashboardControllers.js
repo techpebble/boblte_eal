@@ -4,6 +4,7 @@ import EALUsage from "../models/eal_usages.js";
 import EALDispatch from "../models/eal_dispatches.js";
 import Dispatch from "../models/dispatch.js";
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
+import { companyScope } from '../middleware/authMiddleware.js';
 
 // A dispatch note counts towards the "dispatched" figure once it has left the yard.
 const DISPATCHED_STATUSES = ['dispatched', 'delivered'];
@@ -150,6 +151,10 @@ export const getDashboardData = async (req, res) => {
     if (scopeError) {
       return res.status(400).json({ message: scopeError });
     }
+
+    // Without companies:all a person sees only their own company, whatever
+    // the query asked for.
+    Object.assign(scope, companyScope(req));
 
     const { types: movementTypes, error: typesError } = resolveMovementTypes(req.query.types);
     if (typesError) {
@@ -418,7 +423,7 @@ export const getDashboardData = async (req, res) => {
         previous: { startDate: prevStart, endDate: prevEnd }
       },
       scope: {
-        company: req.query.company || null,
+        company: scope.company ? String(scope.company) : null,
         market: scope.market || null
       },
       kpis: {

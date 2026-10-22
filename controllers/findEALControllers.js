@@ -2,6 +2,7 @@ import EALUsage from "../models/eal_usages.js";
 import EALIssuance from "../models/eal_issuances.js";
 import Dispatch from "../models/dispatch.js";
 import EALDispatch from "../models/eal_dispatches.js";
+import { companyScope } from "../middleware/authMiddleware.js";
 
 
 export const getEALData = async (req, res) => {
@@ -29,6 +30,10 @@ export const getEALData = async (req, res) => {
         if (req.query.company) filter.company = req.query.company;
         if (req.query.market) filter.market = req.query.market;
         if (req.query.pack) filter.pack = req.query.pack;
+
+        // Without companies:all a person sees only their own company, whatever
+        // the query asked for.
+        Object.assign(filter, companyScope(req));
 
         // Find all issuance records that match the prefix and contain the serial
         const issuances = await EALIssuance.find({

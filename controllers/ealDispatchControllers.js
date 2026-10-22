@@ -1,6 +1,7 @@
 import EALDispatch from "../models/eal_dispatches.js";
 import EALUsage from "../models/eal_usages.js";
 import mongoose from 'mongoose';
+import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
 
 /**
  * Add EAL dispatch and update corresponding issuance record.
@@ -22,6 +23,12 @@ export const addEALDispatch = async (req, res) => {
         serialTo,
         usedQuantity
       } = req.body;
+
+      const refusal = companyRefusal(req, company);
+      if (refusal) {
+        session.endSession();
+        return res.status(403).json({ message: refusal });
+      }
 
       session.startTransaction();
 
@@ -143,6 +150,10 @@ export const getAllEALDispatch = async (req, res) => {
     if (req.query.company) filter.company = req.query.company;
     if (req.query.market) filter.market = req.query.market;
     if (req.query.prefix) filter.prefix = req.query.prefix;
+
+    // Without companies:all a person sees only their own company, whatever
+    // the query asked for.
+    Object.assign(filter, companyScope(req));
 
     const dispatches = await EALDispatch.find(filter)
       // .populate('company', 'name')

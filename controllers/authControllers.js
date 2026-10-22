@@ -2,6 +2,7 @@ import User from "../models/user.js";
 import jwt from "jsonwebtoken";
 import Role from "../models/role.js";
 import { ADMIN_ROLE_NAME, can } from "../config/roleHelpers.js";
+import { companyRefusal } from "../middleware/authMiddleware.js";
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -15,6 +16,14 @@ export const registerUser = async (req, res) => {
 
     if (!fullName || !email || !role || !company || !password || !mobile) {
       return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // On an empty install there is no signed-in user yet, and companyRefusal
+    // lets that through; after that it holds whoever is adding people to
+    // their own company unless they hold companies:all.
+    const refusal = companyRefusal(req, company);
+    if (refusal) {
+      return res.status(403).json({ message: refusal });
     }
 
     // This used to be open to anyone who could reach the API, which meant

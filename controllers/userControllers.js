@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import User from '../models/user.js';
 import Role from '../models/role.js';
+import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
 
 const SAFE_FIELDS = '-password';
 
@@ -30,6 +31,10 @@ export const getAllUsers = async (req, res) => {
         if (req.query.isActive === 'false') filter.isActive = false;
         else if (req.query.isActive !== 'all') filter.isActive = { $ne: false };
 
+        // Without companies:all a person sees only their own company, whatever
+        // the query asked for.
+        Object.assign(filter, companyScope(req));
+
         const users = await User.find(filter)
             .select(SAFE_FIELDS)
             .populate('role', 'name permissions isSystem')
@@ -50,7 +55,7 @@ export const getUserByID = async (req, res) => {
             return res.status(400).json({ message: 'Invalid user ID' });
         }
 
-        const user = await User.findById(id)
+        const user = await User.findOne({ _id: id, ...companyScope(req) })
             .select(SAFE_FIELDS)
             .populate('role', 'name permissions isSystem')
             .populate('company', 'name');
@@ -70,7 +75,7 @@ export const updateUserByID = async (req, res) => {
             return res.status(400).json({ message: 'Invalid user ID' });
         }
 
-        const user = await User.findById(id);
+        const user = await User.findOne({ _id: id, ...companyScope(req) });
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         const { fullName, email, mobile, role, company } = req.body;
@@ -94,7 +99,11 @@ export const updateUserByID = async (req, res) => {
         if (fullName !== undefined) user.fullName = String(fullName).trim();
         if (email !== undefined) user.email = String(email).trim();
         if (mobile !== undefined) user.mobile = String(mobile).trim();
-        if (company !== undefined) user.company = company;
+        if (company !== undefined) {
+            const refusal = companyRefusal(req, company);
+            if (refusal) return res.status(403).json({ message: refusal });
+            user.company = company;
+        }
 
         await user.save();
 
@@ -131,7 +140,7 @@ export const updateUserStatus = async (req, res) => {
             return res.status(400).json({ message: 'Invalid user ID' });
         }
 
-        const user = await User.findById(id);
+        const user = await User.findOne({ _id: id, ...companyScope(req) });
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         if (!isActive) {
@@ -171,7 +180,7 @@ export const resetUserPassword = async (req, res) => {
             return res.status(400).json({ message: 'The new password must be at least 8 characters' });
         }
 
-        const user = await User.findById(id);
+        const user = await User.findOne({ _id: id, ...companyScope(req) });
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         // Assigning and saving so the model's hashing hook runs; a direct

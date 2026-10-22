@@ -1,4 +1,5 @@
 import Item from "../models/item.js";
+import { companyScope, companyRefusal } from "../middleware/authMiddleware.js";
 
 // Add Item
 export const addItem = async (req, res) => {
@@ -16,6 +17,11 @@ export const addItem = async (req, res) => {
         // an item without one would show a blank where its name should be.
         if (!alias || !String(alias).trim()) {
             return res.status(400).send({ message: 'A short name (alias) is required' })
+        }
+
+        const refusal = companyRefusal(req, company);
+        if (refusal) {
+            return res.status(403).json({ message: refusal });
         }
 
         const item = await Item.create({
@@ -59,6 +65,10 @@ export const getAllItem = async (req, res) => {
             filter.isActive = { $ne: false };
         }
 
+        // Without companies:all a person sees only their own company, whatever
+        // the query asked for.
+        Object.assign(filter, companyScope(req));
+
         const items = await Item.find(filter)
             .populate('company', 'name')
             .populate('pack', 'name bottlesPerCase');
@@ -76,9 +86,14 @@ export const getAllItem = async (req, res) => {
 export const getItemByID = async (req, res) => {
     try {
         const { id } = req.params;
-        const item = await Item.findById(id)
+        const item = await Item.findOne({ _id: id, ...companyScope(req) })
             .populate('company', 'name')
             .populate('pack', 'name bottlesPerCase');
+
+        if (!item) {
+            return res.status(404).json({ message: "Item not found" });
+        }
+
         return res.status(200).json(item);
     } catch (error) {
         console.log(error.message);
@@ -96,8 +111,15 @@ export const updateItemByID = async (req, res) => {
             return res.status(400).send({ message: 'Send all required fields' })
         }
 
+        // The scope on the query keeps someone out of another company's item;
+        // this keeps them from pushing one of their own across into it.
+        const refusal = companyRefusal(req, company);
+        if (refusal) {
+            return res.status(403).json({ message: refusal });
+        }
+
         const { id } = req.params;
-        const result = await Item.findByIdAndUpdate(id, req.body, { new: true })
+        const result = await Item.findOneAndUpdate({ _id: id, ...companyScope(req) }, req.body, { new: true })
             .populate('company', 'name')
             .populate('pack', 'name bottlesPerCase');
 
@@ -122,8 +144,8 @@ export const updateItemStatus = async (req, res) => {
             return res.status(400).send({ message: 'isActive boolean is required' });
         }
 
-        const result = await Item.findByIdAndUpdate(
-            id,
+        const result = await Item.findOneAndUpdate(
+            { _id: id, ...companyScope(req) },
             { isActive },
             { new: true }
         )

@@ -1,4 +1,5 @@
 import Company from "../models/company.js";
+import { companyScope } from "../middleware/authMiddleware.js";
 
 // Add Company
 export const addCompany = async (req, res) => {
@@ -30,7 +31,10 @@ export const addCompany = async (req, res) => {
 // Get all Company
 export const getAllCompany = async (req, res) => {
     try {
-        const companies = await Company.find({});
+        // Here the company IS the record, so the scope applies to its own id:
+        // without companies:all a person sees only their own in every picker.
+        const { company } = companyScope(req);
+        const companies = await Company.find(company ? { _id: company } : {});
         return res.status(200).json({
             count: companies.length,
             data: companies

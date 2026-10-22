@@ -77,3 +77,27 @@ export const companyScope = (req) => {
 
     return { company: company._id ?? company };
 };
+
+/**
+ * Whether a record belongs to a company this person may work with. Someone
+ * holding companies:all may work with every one.
+ */
+export const inCompanyScope = (req, companyOfRecord) => {
+    const scope = companyScope(req);
+    if (!scope.company) return true;
+
+    if (!companyOfRecord) return false;
+    return String(companyOfRecord._id ?? companyOfRecord) === String(scope.company);
+};
+
+/**
+ * The sentence to send back when a request reaches into another company, or
+ * null when it does not, so a controller reads:
+ *
+ *   const refusal = companyRefusal(req, issuance.company);
+ *   if (refusal) return res.status(403).json({ message: refusal });
+ */
+export const companyRefusal = (req, companyOfRecord) =>
+    inCompanyScope(req, companyOfRecord)
+        ? null
+        : 'That record belongs to another company. Ask an administrator.';

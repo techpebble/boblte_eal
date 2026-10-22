@@ -4,6 +4,7 @@ import EALIssuance from "../models/eal_issuances.js";
 import Item from '../models/item.js';
 import EALDispatch from '../models/eal_dispatches.js';
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
+import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
 
 
 
@@ -36,6 +37,12 @@ export const addEALUsage = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(company) || !mongoose.Types.ObjectId.isValid(item) || !mongoose.Types.ObjectId.isValid(pack)) {
             await session.abortTransaction();
             return res.status(400).json({ message: 'Invalid company or item or pack' });
+        }
+
+        const refusal = companyRefusal(req, company);
+        if (refusal) {
+            await session.abortTransaction();
+            return res.status(403).json({ message: refusal });
         }
 
         if (!company || !market || !pack || !item) {
@@ -199,6 +206,10 @@ export const getAllEALUsage = async (req, res) => {
             filter.balanceQuantityInCases = { $gt: 0 };
         }
 
+        // Without companies:all a person sees only their own company, whatever
+        // the query asked for.
+        Object.assign(filter, companyScope(req));
+
         const usage = await EALUsage.find(filter)
             .populate('company', 'name')
             .populate('item', 'name alias')
@@ -237,7 +248,7 @@ export const deleteEALUsage = async (req, res) => {
             return res.status(400).json({ message: 'Invalid EAL usage ID' });
         }
 
-        const usage = await EALUsage.findById(id).session(session);
+        const usage = await EALUsage.findOne({ _id: id, ...companyScope(req) }).session(session);
 
         if (!usage) {
             await session.abortTransaction();
