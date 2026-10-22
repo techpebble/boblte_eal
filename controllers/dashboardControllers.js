@@ -3,6 +3,7 @@ import EALIssuance from "../models/eal_issuances.js";
 import EALUsage from "../models/eal_usages.js";
 import EALDispatch from "../models/eal_dispatches.js";
 import Dispatch from "../models/dispatch.js";
+import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 
 // A dispatch note counts towards the "dispatched" figure once it has left the yard.
 const DISPATCHED_STATUSES = ['dispatched', 'delivered'];
@@ -57,13 +58,12 @@ const resolvePeriod = (query) => {
     if (!query.startDate || !query.endDate) {
       return { error: 'Provide both startDate and endDate, or neither' };
     }
-    start = new Date(query.startDate);
-    end = new Date(query.endDate);
-    if (isNaN(start) || isNaN(end)) {
+    // Both ends built in the server's own timezone, like the list endpoints.
+    start = startOfDay(query.startDate);
+    end = endOfDay(query.endDate);
+    if (!start || !end) {
       return { error: 'Please enter the dates correctly' };
     }
-    // Match the other list endpoints and include the whole of the closing day.
-    end = new Date(end.setHours(23, 59, 59, 999));
   } else {
     start = new Date(now.getFullYear(), now.getMonth(), 1);
     end = now;

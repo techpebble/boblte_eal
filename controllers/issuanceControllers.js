@@ -2,6 +2,7 @@ import EALIssuance from "../models/eal_issuances.js";
 import EALUsage from "../models/eal_usages.js";
 import Pack from "../models/pack.js";
 import mongoose from 'mongoose';
+import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 
 /**
  * Add EAL issuance and generate EAL labels
@@ -173,8 +174,8 @@ export const getAllEALIssuances = async (req, res) => {
     // Optional query filters
     if (req.query.startDate && req.query.endDate) {
       filter.dateIssued = {
-        $gte: new Date(req.query.startDate),
-        $lte: new Date(new Date(req.query.endDate).setHours(23, 59, 59, 999)), // include full day
+        $gte: startOfDay(req.query.startDate),
+        $lte: endOfDay(req.query.endDate),
       };
     }
     if (req.query.company) filter.company = req.query.company;

@@ -3,6 +3,7 @@ import Dispatch from "../models/dispatch.js";
 import EALUsage from "../models/eal_usages.js";
 import EALDispatch from "../models/eal_dispatches.js";
 import Item from "../models/item.js";
+import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 
 const validStatuses = ['draft', 'final', 'loaded', 'dispatched', 'delivered'];
 
@@ -573,8 +574,8 @@ export const getAllDispatch = async (req, res) => {
     // Optional filters
     if (req.query.startDate && req.query.endDate) {
       filter.dateDispatched = {
-        $gte: new Date(req.query.startDate),
-        $lte: new Date(new Date(req.query.endDate).setHours(23, 59, 59, 999))
+        $gte: startOfDay(req.query.startDate),
+        $lte: endOfDay(req.query.endDate)
       };
     }
     if (req.query.company) filter.company = req.query.company;
@@ -611,8 +612,8 @@ export const getAllEALDispatch = async (req, res) => {
     // Optional filters
     if (req.query.startDate && req.query.endDate) {
       filter.dateDispatched = {
-        $gte: new Date(req.query.startDate),
-        $lte: new Date(new Date(req.query.endDate).setHours(23, 59, 59, 999))
+        $gte: startOfDay(req.query.startDate),
+        $lte: endOfDay(req.query.endDate)
       };
     }
     if (req.query.company) filter.company = req.query.company;

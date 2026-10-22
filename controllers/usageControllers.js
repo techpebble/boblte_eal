@@ -3,6 +3,7 @@ import EALUsage from "../models/eal_usages.js";
 import EALIssuance from "../models/eal_issuances.js";
 import Item from '../models/item.js';
 import EALDispatch from '../models/eal_dispatches.js';
+import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 
 
 
@@ -185,8 +186,8 @@ export const getAllEALUsage = async (req, res) => {
         // Optional query filters
         if (req.query.startDate && req.query.endDate) {
             filter.dateUsed = {
-                $gte: new Date(req.query.startDate),
-                $lte: new Date(new Date(req.query.endDate).setHours(23, 59, 59, 999)), // include full day
+                $gte: startOfDay(req.query.startDate),
+                $lte: endOfDay(req.query.endDate),
             };
         }
         if (req.query.company) filter.company = req.query.company;
