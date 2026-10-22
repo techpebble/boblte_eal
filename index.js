@@ -14,11 +14,6 @@ import roleRoutes from './routes/roleRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import cors from "cors";
 
-import path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const app = express();
 
@@ -49,8 +44,6 @@ app.use("/api/v1/dispatch", dispatchRoutes);
 // to be removed later
 app.use("/api/v1/eal_dispatch", dispatchRoutes);
 
-// Serve uploads folder
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
