@@ -371,7 +371,7 @@ export const addEALLinkToDispatchItem = async (req, res) => {
     return res.status(200).json({
       message: 'EAL link and dispatch saved successfully.',
       // ealDispatches: dispatches,
-      updatedDispatch: await Dispatch.findById(dispatchId).populate('company', 'name')
+      updatedDispatch: await Dispatch.findById(dispatchId).populate('company', 'name code')
         .populate('deliveryTo', 'name')
         .populate({ path: 'items.item' })
         .populate('createdBy', 'fullName email')
@@ -516,7 +516,7 @@ export const unlinkEALFromDispatchItem = async (req, res) => {
 
     // Populate similar to addEALLinkToDispatchItem
     const updatedDispatch = await Dispatch.findById(dispatchId)
-      .populate('company', 'name')
+      .populate('company', 'name code')
       .populate('deliveryTo', 'name')
       .populate({ path: 'items.item' })
       .populate('createdBy', 'fullName email');
@@ -556,7 +556,7 @@ export const getAllDispatch = async (req, res) => {
     Object.assign(filter, companyScope(req));
 
     const dispatches = await Dispatch.find(filter)
-      .populate('company', 'name')
+      .populate('company', 'name code')
       .populate('deliveryTo', 'name')
       .populate({ path: 'items.item' })
       .populate('createdBy', 'fullName email')
@@ -599,7 +599,7 @@ export const getAllEALDispatch = async (req, res) => {
     Object.assign(filter, companyScope(req));
 
     const dispatches = await EALDispatch.find(filter)
-      .populate('company', 'name')
+      .populate('company', 'name code')
       .populate('item', 'name alias')
       .populate('createdBy', 'fullName email')
       .sort({ createdAt: -1 });
