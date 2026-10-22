@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import Role from "../models/role.js";
 import { ADMIN_ROLE_NAME, can } from "../config/roleHelpers.js";
 import { companyRefusal } from "../middleware/authMiddleware.js";
+import { isDatabaseError, DATABASE_UNAVAILABLE } from "../utils/authFailure.js";
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -106,7 +107,16 @@ export const loginUser = async (req, res) => {
       token: generateToken(user._id)
     });
   } catch (error) {
-    res.status(500).json({ message: "Error login user", error: error.message });
+    // The driver's own words went straight to the phone before this, so a
+    // misconfigured database user read as "bad auth : authentication
+    // failed" on the sign-in screen. They belong in the log.
+    console.error('Login failed:', error);
+
+    if (isDatabaseError(error)) {
+      return res.status(503).json({ message: DATABASE_UNAVAILABLE });
+    }
+
+    res.status(500).json({ message: "Error login user" });
   }
 };
 

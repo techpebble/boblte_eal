@@ -2,6 +2,7 @@ import User from "../models/user.js";
 import jwt from "jsonwebtoken";
 import { can } from "../config/roleHelpers.js";
 import { PERMISSIONS } from "../config/permissions.js";
+import { authFailure } from "../utils/authFailure.js";
 
 /**
  * Confirms the caller is signed in and loads their user, with the role and
@@ -10,6 +11,9 @@ import { PERMISSIONS } from "../config/permissions.js";
  * The permissions are read here rather than carried in the token on purpose:
  * tokens last a year, so a role edited today has to take effect on the next
  * request, not the next time that person happens to log in.
+ *
+ * Only a token the server cannot trust is a 401. A database it cannot read
+ * is a 503: see utils/authFailure.js.
  */
 export const protect = async (req, res, next) => {
     let token = req.headers.authorization?.split(" ")[1];
@@ -31,7 +35,11 @@ export const protect = async (req, res, next) => {
 
         next();
     } catch (error) {
-        res.status(401).json({message: "Not authorised, token failed"})
+        // The user lookup above is in this try too, so a database that is
+        // down or a database user without permission to read the records
+        // would otherwise answer "token failed" and sign everyone out.
+        const { status, body } = authFailure(error);
+        res.status(status).json(body);
     }
 
 }
