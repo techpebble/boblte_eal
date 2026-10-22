@@ -1,5 +1,5 @@
 import express from "express";
-import { addDispatch, updateDispatch, addEALLinkToDispatchItem, getAllDispatch, unlinkEALFromDispatchItem, updateDispatchStatus, updateVehicleDetails, getAllEALDispatch, deleteDispatch } from "../controllers/dispatchControllers.js";
+import { addDispatch, updateDispatch, addEALLinkToDispatchItem, getAllDispatch, getDispatchByID, unlinkEALFromDispatchItem, updateDispatchStatus, updateVehicleDetails, getAllEALDispatch, deleteDispatch } from "../controllers/dispatchControllers.js";
 import { protect, authorize } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -14,6 +14,9 @@ router.put('/:dispatchId/vehicle', protect, authorize('dispatch:status'), update
 router.get("/eal", protect, authorize('dispatch:view'), getAllEALDispatch);
 router.post("/eal/add_eal_link", protect, authorize('dispatch:link'), addEALLinkToDispatchItem);
 router.post("/eal/remove_eal_link", protect, authorize('dispatch:link'), unlinkEALFromDispatchItem);
+
+// After /eal, or "eal" would be read as a dispatch id.
+router.get("/:dispatchId", protect, authorize('dispatch:view'), getDispatchByID);
 
 // to be removed later
 router.post("/add_eal_link", protect, authorize('dispatch:link'), addEALLinkToDispatchItem);

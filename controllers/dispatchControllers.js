@@ -577,6 +577,36 @@ export const getAllDispatch = async (req, res) => {
 };
 
 /**
+ * One note, with everything its own page shows. The list hands over an id and
+ * nothing else, so this is what the page is built from rather than a second
+ * copy of the list filtered down to one row.
+ */
+export const getDispatchByID = async (req, res) => {
+  const { dispatchId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(dispatchId)) {
+    return res.status(400).json({ message: 'Invalid Dispatch ID' });
+  }
+
+  try {
+    const dispatch = await Dispatch.findOne({ _id: dispatchId, ...companyScope(req) })
+      .populate('company', 'name code')
+      .populate('deliveryTo', 'name')
+      .populate({ path: 'items.item' })
+      .populate('createdBy', 'fullName email');
+
+    if (!dispatch) {
+      return res.status(404).json({ message: 'Dispatch not found' });
+    }
+
+    return res.status(200).json({ data: dispatch });
+  } catch (error) {
+    console.error('Failed to fetch dispatch:', error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+/**
  * Get all eal dispatches with optional filters (date range, company, market).
  */
 export const getAllEALDispatch = async (req, res) => {
