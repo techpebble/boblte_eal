@@ -1,6 +1,7 @@
 import User from "../models/user.js";
 import jwt from "jsonwebtoken";
 import { can } from "../config/roleHelpers.js";
+import { PERMISSIONS } from "../config/permissions.js";
 
 /**
  * Confirms the caller is signed in and loads their user, with the role and
@@ -48,10 +49,17 @@ export const authorize = (...keys) => (req, res, next) => {
 
     if (keys.some((key) => can(req.user, key))) return next();
 
+    // The mobile app shows this message as it comes, so it has to say what
+    // was refused and to whom rather than just "not allowed".
+    const label = PERMISSIONS.find((permission) => permission.key === keys[0])?.label;
+    const roleName = req.user?.role?.name;
+
     return res.status(403).json({
-        message: 'Your role does not allow this',
+        message: roleName
+            ? `${roleName} is not allowed to ${label ? label.charAt(0).toLowerCase() + label.slice(1) : 'do this'}. Ask an administrator.`
+            : 'Your role does not allow this. Ask an administrator.',
         required: keys,
-        role: req.user?.role?.name ?? null
+        role: roleName ?? null
     });
 };
 

@@ -81,6 +81,24 @@ export const BUILT_IN_ROLES = [
         ]
     },
     {
+        // Exactly what the Flutter app calls, and nothing else. It is not a
+        // scanner but the whole operation in a phone: it lists issuance,
+        // usage and dispatch, records issuances and usages, links and unlinks
+        // serial ranges, and marks a note loaded with its vehicle. None of
+        // the three roles above spans all of that, so without this a phone
+        // user has to be an administrator.
+        name: 'Field Operator',
+        description: 'For the mobile app: records issuance and usage, links serial ranges and marks notes loaded.',
+        isSystem: false,
+        permissions: [
+            'dashboard:view',
+            'issuance:view', 'issuance:create', 'issuance:delete',
+            'usage:view', 'usage:create',
+            'dispatch:view', 'dispatch:link', 'dispatch:status',
+            'masterdata:view'
+        ]
+    },
+    {
         name: 'Dispatch',
         description: 'Raises dispatch notes and links serial ranges to cases.',
         isSystem: false,
