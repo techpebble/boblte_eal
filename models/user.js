@@ -5,7 +5,10 @@ const UserSchema = new mongoose.Schema({
   fullName: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   mobile: { type: String, required: true, unique: true },
-  role: { type: String, enum: ['admin', 'storekeeper', 'production', 'dispatch'], required: true },
+  // Roles are records now, so this points at one. The string each user had
+  // before the change is kept in legacyRole rather than thrown away.
+  role: { type: mongoose.Schema.Types.ObjectId, ref: 'roles', required: true },
+  legacyRole: { type: String },
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies', required: true },
   password: { type: String, required: true, select: false },
 }, { timestamps: true });

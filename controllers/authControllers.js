@@ -1,5 +1,7 @@
 import User from "../models/user.js";
 import jwt from "jsonwebtoken";
+import Role from "../models/role.js";
+import { ADMIN_ROLE_NAME, can } from "../config/roleHelpers.js";
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -13,6 +15,31 @@ export const registerUser = async (req, res) => {
 
     if (!fullName || !email || !role || !company || !password || !mobile) {
       return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // This used to be open to anyone who could reach the API, which meant
+    // anyone could make themselves an administrator. It is now reserved for
+    // someone who may manage users — except on an empty install, where there
+    // is nobody to grant that yet.
+    const existingUsers = await User.countDocuments();
+
+    if (existingUsers > 0 && !can(req.user, 'users:manage')) {
+      return res.status(req.user ? 403 : 401).json({
+        message: req.user
+          ? 'Your role does not allow adding users'
+          : 'Not authorized, no token'
+      });
+    }
+
+    const roleRecord = await Role.findById(role);
+
+    if (!roleRecord) {
+      return res.status(400).json({ message: 'Pick a role that exists' });
+    }
+
+    // Only someone who may manage roles can hand out the unrestricted one.
+    if (roleRecord.name === ADMIN_ROLE_NAME && existingUsers > 0 && !can(req.user, 'roles:manage')) {
+      return res.status(403).json({ message: `Your role does not allow granting ${ADMIN_ROLE_NAME}` });
     }
 
     const existingUser = await User.findOne({ email });
@@ -55,7 +82,7 @@ export const loginUser = async (req, res) => {
         { email },
         { mobile: email }  // assuming your User schema has a 'mobile' field
       ]
-    }).select('+password');
+    }).select('+password').populate('role');
     if (!user || !(await user.comparePassword(password))) {
       return res.status(400).json({ message: "Invalid Credentials" });
     }
@@ -77,7 +104,7 @@ export const loginUser = async (req, res) => {
 // Get User
 export const getUserInfo = async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select('-password');
+        const user = await User.findById(req.user.id).select('-password').populate('role');
 
         if (!user) {
             return res.status(404).json({message:"User not found"});
