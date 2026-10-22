@@ -114,3 +114,23 @@ export const BUILT_IN_ROLES = [
 /** Which of the keys given are not permissions this app knows about. */
 export const unknownPermissions = (keys = []) =>
     keys.filter((key) => !PERMISSION_KEYS.includes(key));
+
+/**
+ * Who may read master data.
+ *
+ * Reading the lists is implied by being allowed to record against them: a
+ * role with usage:create but not masterdata:view could open the production
+ * screen and then be refused the list of items to record against, which is
+ * a role that cannot do the one thing it was given. The Demo Role on this
+ * server is exactly that.
+ *
+ * masterdata:manage is here too — being allowed to change a list and not
+ * read it was never intended.
+ */
+export const MASTERDATA_READERS = [
+    'masterdata:view',
+    'masterdata:manage',
+    'issuance:create',
+    'usage:create',
+    'dispatch:create'
+];
