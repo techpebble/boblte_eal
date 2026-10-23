@@ -35,8 +35,23 @@ const round = (value, places = 2) => {
  * Percentage change between two periods. Returns null when the earlier figure
  * is zero, because the change is undefined rather than infinite.
  */
+/**
+ * The change against the previous period, as a percentage — when saying it
+ * that way means anything.
+ *
+ * Against a day rather than a month, the base is often a handful: ninety
+ * labels applied yesterday against twenty-one thousand today is +24,233%,
+ * which is arithmetic, not information, and it crowds out the figure it is
+ * meant to qualify. Past a tenfold swing the percentage stops helping, so
+ * it is left off and the previous value — which the card shows anyway —
+ * speaks for itself.
+ */
+const RUNAWAY = 10; // ten times up or down
+
 const changePct = (current, previous) => {
   if (!previous) return null;
+  const ratio = current / previous;
+  if (ratio > RUNAWAY || ratio < 1 / RUNAWAY) return null;
   return round(((current - previous) / previous) * 100, 1);
 };
 
@@ -66,8 +81,10 @@ const resolvePeriod = (query) => {
       return { error: 'Please enter the dates correctly' };
     }
   } else {
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
-    end = now;
+    // Today, whole. The comparison that falls out of it is yesterday, which
+    // is the one a person standing on the floor actually makes.
+    start = startOfDay(now);
+    end = endOfDay(now);
   }
 
   if (start > end) {
