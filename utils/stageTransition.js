@@ -42,6 +42,17 @@ const BACKWARD = {
 
 const clean = (value) => String(value ?? '').toLowerCase().trim();
 
+/**
+ * Whether moving from one stage to another is undoing rather than going on.
+ * A stage this app does not know is neither, so a typo reads as an invalid
+ * status rather than as an attempt to reverse.
+ */
+export const isBackward = (from, to) => {
+    const at = DISPATCH_STAGES.indexOf(clean(from));
+    const going = DISPATCH_STAGES.indexOf(clean(to));
+    return at !== -1 && going !== -1 && going < at;
+};
+
 /** Lines whose cases are not all covered by linked labels. */
 const shortLinesOf = (dispatch) =>
     (dispatch?.items ?? []).filter(

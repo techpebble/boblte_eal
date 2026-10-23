@@ -4,9 +4,9 @@ import EALUsage from "../models/eal_usages.js";
 import EALDispatch from "../models/eal_dispatches.js";
 import Item from "../models/item.js";
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
-import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
+import { companyScope, companyRefusal, can } from '../middleware/authMiddleware.js';
 import { linkRefusal } from '../utils/linkWindow.js';
-import { transitionRefusal } from '../utils/stageTransition.js';
+import { transitionRefusal, isBackward } from '../utils/stageTransition.js';
 import { isManualEntry, manualEntryRefusal } from '../utils/manualEntry.js';
 
 
@@ -193,6 +193,20 @@ export const updateDispatchStatus = async (req, res) => {
 
     if (!existingDispatch) {
       return res.status(404).json({ error: 'Dispatch not found' });
+    }
+
+    // Undoing a stage is its own permission. Moving a note along is the line
+    // it was always going to follow; sending it back rewrites what the record
+    // said had already happened, which is a supervisor's call.
+    if (isBackward(existingDispatch.status, status) && !can(req.user, 'dispatch:reverse')) {
+      const roleName = req.user?.role?.name;
+      return res.status(403).json({
+        error: roleName
+          ? `${roleName} is not allowed to send a note back a stage. Ask a supervisor.`
+          : 'Your role does not allow sending a note back a stage. Ask a supervisor.',
+        required: ['dispatch:reverse'],
+        role: roleName ?? null
+      });
     }
 
     // Step 2: the transition rules, which the vehicle route now shares. This

@@ -23,6 +23,12 @@ export const PERMISSIONS = [
     { key: 'dispatch:delete', group: 'Dispatch', label: 'Delete a draft note' },
     { key: 'dispatch:link', group: 'Dispatch', label: 'Link and unlink serial ranges' },
     { key: 'dispatch:status', group: 'Dispatch', label: 'Move a note along its statuses' },
+    {
+        key: 'dispatch:reverse',
+        group: 'Dispatch',
+        label: 'Send a note back a stage',
+        note: 'Undoing a stage a note has already reached — marked loaded before the lorry was packed, or delivered before the depot signed. Separate from moving one along, because it rewrites what the record said had happened.'
+    },
 
     { key: 'stock:view', group: 'Inventory', label: 'See EAL stock' },
     { key: 'finished:view', group: 'Inventory', label: 'See finished stock' },
