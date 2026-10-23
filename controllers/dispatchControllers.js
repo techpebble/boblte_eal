@@ -195,8 +195,10 @@ export const updateDispatchStatus = async (req, res) => {
       return res.status(404).json({ error: 'Dispatch not found' });
     }
 
-    // Step 2: the transition rules, which the vehicle route now shares.
-    const refusal = transitionRefusal(existingDispatch, status);
+    // Step 2: the transition rules, which the vehicle route now shares. This
+    // is the route that exists to change the stage, so it is the one that may
+    // also undo one.
+    const refusal = transitionRefusal(existingDispatch, status, { allowBack: true });
     if (refusal) return res.status(400).json(refusal);
 
     const updatedDispatch = await Dispatch.findByIdAndUpdate(

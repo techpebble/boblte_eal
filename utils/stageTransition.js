@@ -15,12 +15,29 @@ export const DISPATCH_STAGES = [
     'delivered'
 ];
 
-/** One step forward, and the one step back that is allowed. */
+/** One step forward. */
 const FORWARD = {
     draft: 'final',
     final: 'loaded',
     loaded: 'dispatched',
     dispatched: 'delivered'
+};
+
+/**
+ * One step back, for when a note was moved on too soon: the lorry had not
+ * left, the depot had not signed, the labels went on the wrong note. A stage
+ * is undone one at a time, the same way it was reached, so a delivered note
+ * cannot drop straight back to final without passing the stages between.
+ *
+ * Only `final` → `draft` carries a condition, because going back that far
+ * reopens the lines themselves and labels linked against the old ones would
+ * be linked against quantities that no longer hold.
+ */
+const BACKWARD = {
+    final: 'draft',
+    loaded: 'final',
+    dispatched: 'loaded',
+    delivered: 'dispatched'
 };
 
 const clean = (value) => String(value ?? '').toLowerCase().trim();
@@ -34,11 +51,15 @@ const shortLinesOf = (dispatch) =>
 /**
  * Why `dispatch` may not move to `nextStatus`, or null when it may.
  *
+ * `allowBack` opens the one-step-back moves. It is off by default so that a
+ * route which writes `status` in passing cannot undo a stage; the status
+ * endpoint turns it on, because undoing a stage is what it was asked to do.
+ *
  * The body is returned ready to send with a 400, keeping the shape the
  * status endpoint already answered with, so anything reading `error`,
  * `shortfallInCases` or `lines` still finds them.
  */
-export const transitionRefusal = (dispatch, nextStatus) => {
+export const transitionRefusal = (dispatch, nextStatus, { allowBack = false } = {}) => {
     const from = clean(dispatch?.status);
     const to = clean(nextStatus);
 
@@ -84,6 +105,20 @@ export const transitionRefusal = (dispatch, nextStatus) => {
     }
 
     if (FORWARD[from] === to) return null;
+
+    // Going back is its own act, asked for in those words, so only the route
+    // whose whole job is the stage may do it. Saving the vehicle details must
+    // not walk a note backwards as a side effect of saving a lorry number.
+    if (DISPATCH_STAGES.indexOf(to) < DISPATCH_STAGES.indexOf(from)) {
+        if (!allowBack) {
+            return { error: `Invalid status transition from '${from}' to '${to}'` };
+        }
+        if (BACKWARD[from] === to) return null;
+        return {
+            error: `A dispatch goes back one stage at a time. Move it to ` +
+                `'${BACKWARD[from]}' first.`
+        };
+    }
 
     return { error: `Invalid status transition from '${from}' to '${to}'` };
 };
