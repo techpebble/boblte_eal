@@ -12,6 +12,8 @@ import dispatchRoutes from './routes/dispatchRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import roleRoutes from './routes/roleRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import versionRoutes from './routes/versionRoutes.js';
+import { requireAppVersion } from './middleware/requireAppVersion.js';
 import cors from "cors";
 
 
@@ -21,13 +23,20 @@ const app = express();
 app.use(cors({
     origin: process.env.CLIENT_URL || "*",
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Client', 'X-App-Version']
 }));
 
 //Middleware for parsing request body
 app.use(express.json());
 
 connectDB();
+
+// Before the gate on purpose: an app about to be refused has to be able to
+// ask what it needs.
+app.use("/api/v1/version", versionRoutes);
+
+// Everything below here is closed to an app too old to be writing records.
+app.use("/api/v1", requireAppVersion);
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/roles", roleRoutes);
