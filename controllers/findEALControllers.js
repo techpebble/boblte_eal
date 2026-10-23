@@ -157,7 +157,11 @@ export const getEALData = async (req, res) => {
                 usedQuantity: entry.usedQuantity,
                 usedQuantityInCases: entry.usedQuantityInCases,
                 balanceQuantityInCases: entry.balanceQuantityInCases,
-                createdBy: entry.createdBy
+                // Who keyed the record, and when they keyed it: the date of
+                // the work and the date of the entry are often not the same
+                // day, and a trace is read to settle exactly that.
+                createdBy: entry.createdBy,
+                createdAt: entry.createdAt
             })),
             ealDispatches: ealDispatches.map((entry) => ({
                 id: entry._id,
@@ -169,6 +173,7 @@ export const getEALData = async (req, res) => {
                 usedQuantity: entry.usedQuantity,
                 usedQuantityInCases: entry.usedQuantityInCases,
                 createdBy: entry.createdBy,
+                createdAt: entry.createdAt,
                 dispatchId: entry.dispatchId,
                 note: noteById[String(entry.dispatchId)] || null
             }))
