@@ -53,6 +53,20 @@ export const isBackward = (from, to) => {
     return at !== -1 && going !== -1 && going < at;
 };
 
+/**
+ * The stages at which the lorry has not gone yet.
+ *
+ * Up to and including `final` the vehicle is a plan, and a plan can be
+ * corrected. From `loaded` on it is a record of what actually carried the
+ * load, and the excise paperwork is written from it, so it stops being
+ * something to edit. A note sent back a stage becomes editable again, which
+ * is the way back for a number that went in wrong.
+ */
+export const VEHICLE_EDITABLE_STAGES = ['draft', 'final'];
+
+export const vehicleIsFrozen = (dispatch) =>
+    !VEHICLE_EDITABLE_STAGES.includes(clean(dispatch?.status));
+
 /** Lines whose cases are not all covered by linked labels. */
 const shortLinesOf = (dispatch) =>
     (dispatch?.items ?? []).filter(

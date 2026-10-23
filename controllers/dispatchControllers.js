@@ -6,7 +6,7 @@ import Item from "../models/item.js";
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 import { companyScope, companyRefusal, can } from '../middleware/authMiddleware.js';
 import { linkRefusal } from '../utils/linkWindow.js';
-import { transitionRefusal, isBackward } from '../utils/stageTransition.js';
+import { transitionRefusal, isBackward, vehicleIsFrozen } from '../utils/stageTransition.js';
 import { isManualEntry, manualEntryRefusal } from '../utils/manualEntry.js';
 import { coverageRefusal, usedTotal } from '../utils/serialRanges.js';
 
@@ -430,12 +430,37 @@ export const updateVehicleDetails = async (req, res) => {
     const refusal = transitionRefusal(existing, nextStatus);
     if (refusal) return res.status(400).json(refusal);
 
+    // Leaving a field out means leaving it alone too. This used to write the
+    // three as one object, so a client that sent only the lorry number wiped
+    // the driver off the note without meaning to.
+    const was = existing.vehicleDetails || {};
+    const vehicleDetails = {
+      vehicleNumber: vehicleNumber ?? was.vehicleNumber,
+      driverName: driverName ?? was.driverName,
+      driverContact: driverContact ?? was.driverContact
+    };
+
+    // Past `final` the vehicle is a record of what carried the load, not a
+    // plan, so it stops being editable. The route itself stays open, because
+    // the apps move a note on by sending the stage and the vehicle together
+    // and that is not a change to the vehicle — only a different lorry or
+    // driver is refused, and the way to make one is to send the note back a
+    // stage first.
+    const sameAsBefore = ['vehicleNumber', 'driverName', 'driverContact'].every(
+      (field) => String(vehicleDetails[field] ?? '').trim() === String(was[field] ?? '').trim()
+    );
+
+    if (vehicleIsFrozen(existing) && !sameAsBefore) {
+      return res.status(400).json({
+        error: `This note is ${existing.status}. The vehicle was recorded as it ` +
+          `went, so it cannot be changed here. Send the note back a stage first.`,
+        status: existing.status
+      });
+    }
+
     const updatedDispatch = await Dispatch.findOneAndUpdate(
       { _id: dispatchId, ...companyScope(req) },
-      {
-        vehicleDetails: { vehicleNumber, driverName, driverContact },
-        status: nextStatus
-      },
+      { vehicleDetails, status: nextStatus },
       { new: true }
     );
 
