@@ -7,6 +7,7 @@ import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
 import { linkRefusal } from '../utils/linkWindow.js';
 import { transitionRefusal } from '../utils/stageTransition.js';
+import { isManualEntry, manualEntryRefusal } from '../utils/manualEntry.js';
 
 
 /**
@@ -260,6 +261,14 @@ export const addEALLinkToDispatchItem = async (req, res) => {
       return res.status(404).json({ message: 'Dispatch not found' });
     }
 
+    // Typing a serial is how a wrong number reaches the records, so a role
+    // without scan:manual may scan but not type.
+    const manual = manualEntryRefusal(req);
+    if (manual) {
+      await session.abortTransaction();
+      return res.status(403).json(manual);
+    }
+
     // Only while the note is Final. A draft's lines can still change, and a
     // loaded one has already been checked against the lorry.
     const stageRefusal = linkRefusal(dispatch.status);
@@ -339,6 +348,7 @@ export const addEALLinkToDispatchItem = async (req, res) => {
         usedQuantityInCases: count / bottlesPerCase,
         dispatchId,
         usageId: usage._id,
+        enteredByHand: isManualEntry(req.body),
         createdBy: userId
       });
 

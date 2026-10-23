@@ -14,6 +14,10 @@ const EALIssuanceSchema = new mongoose.Schema({
   balanceQuantity: { type: Number, default: function () {
     return this.issuedQuantity;
   }},
+  // Typed rather than scanned. The app has always said a typed serial is
+  // flagged for a supervisor; until now it told no one. Kept on the record
+  // so that claim is true and so the entries can be looked over.
+  enteredByHand: { type: Boolean, default: false },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'users', required: true }
 }, { timestamps: true });
 

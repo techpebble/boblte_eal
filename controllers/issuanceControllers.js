@@ -4,6 +4,7 @@ import Pack from "../models/pack.js";
 import mongoose from 'mongoose';
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
+import { isManualEntry, manualEntryRefusal } from '../utils/manualEntry.js';
 
 /**
  * Add EAL issuance and generate EAL labels
@@ -139,6 +140,15 @@ export const addEALIssuance = async (req, res) => {
       });
     }
 
+    // Typing a serial is how a wrong number reaches the records, so a
+    // role without scan:manual may scan but not type.
+    const manual = manualEntryRefusal(req);
+    if (manual) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json(manual);
+    }
+
     // Create new issuance
     const issuance = new EALIssuance({
       company,
@@ -149,6 +159,7 @@ export const addEALIssuance = async (req, res) => {
       serialFrom,
       serialTo,
       issuedQuantity,
+      enteredByHand: isManualEntry(req.body),
       createdBy: userId
     });
 

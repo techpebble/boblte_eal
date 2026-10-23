@@ -5,6 +5,7 @@ import Item from '../models/item.js';
 import EALDispatch from '../models/eal_dispatches.js';
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 import { companyScope, companyRefusal } from '../middleware/authMiddleware.js';
+import { isManualEntry, manualEntryRefusal } from '../utils/manualEntry.js';
 
 
 
@@ -145,6 +146,13 @@ export const addEALUsage = async (req, res) => {
             }
         }
 
+        const manual = manualEntryRefusal(req);
+        if (manual) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(403).json(manual);
+        }
+
         // Create the EALUsage document
         const usage = await EALUsage.create(
             [{
@@ -159,6 +167,7 @@ export const addEALUsage = async (req, res) => {
                 usedQuantity,
                 usedQuantityInCases,
                 issuanceId: issuance._id,
+                enteredByHand: isManualEntry(req.body),
                 createdBy: userId
             }],
             { session }
