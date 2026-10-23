@@ -131,12 +131,12 @@ export const BUILT_IN_ROLES = [
     },
     {
         name: 'Dispatch',
-        description: 'Raises dispatch notes and links serial ranges to cases.',
+        description: 'Raises dispatch notes, links serial ranges to cases, and can undo a stage.',
         isSystem: false,
         permissions: [
             'dashboard:view',
             'dispatch:view', 'dispatch:create', 'dispatch:edit', 'dispatch:delete',
-            'dispatch:link', 'dispatch:status',
+            'dispatch:link', 'dispatch:status', 'dispatch:reverse',
             'finished:view', 'eal:trace', 'masterdata:view'
         ]
     }
