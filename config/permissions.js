@@ -88,13 +88,18 @@ export const BUILT_IN_ROLES = [
         // the three roles above spans all of that, so without this a phone
         // user has to be an administrator.
         name: 'Field Operator',
-        description: 'For the mobile app: records issuance and usage, links serial ranges and marks notes loaded.',
+        description: 'For the mobile app: records issuance and usage, links serial ranges, marks notes loaded and traces a label.',
         isSystem: false,
         permissions: [
             'dashboard:view',
             'issuance:view', 'issuance:create', 'issuance:delete',
             'usage:view', 'usage:create',
             'dispatch:view', 'dispatch:link', 'dispatch:status',
+            // Tracing is the one thing done with a label in the hand rather
+            // than from a list, and it is the phone's home screen action.
+            // The three roles this one was built from all hold it; leaving
+            // it out of the role made for the app was an oversight.
+            'eal:trace',
             'masterdata:view'
         ]
     },
