@@ -8,6 +8,7 @@ import { companyScope, companyRefusal, can } from '../middleware/authMiddleware.
 import { linkRefusal } from '../utils/linkWindow.js';
 import { transitionRefusal, isBackward } from '../utils/stageTransition.js';
 import { isManualEntry, manualEntryRefusal } from '../utils/manualEntry.js';
+import { coverageRefusal, usedTotal } from '../utils/serialRanges.js';
 
 
 /**
@@ -448,20 +449,37 @@ export const updateVehicleDetails = async (req, res) => {
 }
 
 /**
- * Unlink EAL ranges to dispatch items with validations.
+ * Unlink EAL ranges from dispatch items with validations.
+ *
+ * One link can stand for several dispatch rows. Linking splits the range it
+ * is given across every production run it touches, and a run is recorded
+ * against a single issuance, so a range crossing an issuance boundary is
+ * always two runs and two rows while the note keeps the one link. This looks
+ * for every row inside the link rather than a row matching it, and checks
+ * they account for the whole link before undoing anything.
  */
 export const unlinkEALFromDispatchItem = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { dispatchId, itemId, prefix, serialFrom, serialTo } = req.body;
+    const { dispatchId, itemId, linkId, prefix, serialFrom, serialTo } = req.body;
     const serialFromNum = Number(serialFrom);
     const serialToNum = Number(serialTo);
 
-    if (!dispatchId || !itemId || !prefix || serialFromNum == null || serialToNum == null) {
+    if (!dispatchId || !itemId || !prefix) {
       await session.abortTransaction();
       return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // `Number(undefined)` is NaN rather than null, so a missing serial used
+    // to pass the old check and fail further down as a puzzling 404.
+    if (!Number.isInteger(serialFromNum) || !Number.isInteger(serialToNum) ||
+        serialFromNum > serialToNum) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        message: 'Serial From and Serial To must be whole numbers, with From no higher than To.'
+      });
     }
 
     const dispatch = await Dispatch.findOne({ _id: dispatchId, ...companyScope(req) }).session(session);
@@ -482,58 +500,78 @@ export const unlinkEALFromDispatchItem = async (req, res) => {
       return res.status(404).json({ message: 'Item not found in dispatch' });
     }
 
-    // Step 1: Remove the EALLink from dispatch item
-    const originalLength = item.EALLinks.length;
-    item.EALLinks = item.EALLinks.filter(link =>
-      !(link.prefix === prefix && link.serialFrom === serialFromNum && link.serialTo === serialToNum)
-    );
+    // Step 1: The link being removed. Links carry an _id, so a client that
+    // sends one gets exactly the link it meant; the serial range stays as
+    // the way the apps have always asked. Either way the link's own numbers
+    // are what the rest of this works from, not the ones in the request.
+    const link = linkId
+      ? item.EALLinks.id(linkId)
+      : item.EALLinks.find(l =>
+          l.prefix === prefix &&
+          l.serialFrom === serialFromNum &&
+          l.serialTo === serialToNum);
 
-    if (item.EALLinks.length === originalLength) {
+    if (!link) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'EAL Link not found for unlinking' });
     }
 
-    // Step 2: Get item details to calculate bottlesPerCase
-    const itemDetails = await Item.findById(itemId).session(session);
-    const bottlesPerCase = itemDetails?.bottlesPerCase || 1;
+    const { prefix: linkPrefix, serialFrom: linkFrom, serialTo: linkTo } = link;
 
-    // Step 3: Recalculate EALIssuedQuantity and EALIssuedTotalQuantity
-    item.EALIssuedQuantity = item.EALLinks.reduce((total, link) =>
-      total + (link.serialTo - link.serialFrom + 1) / bottlesPerCase, 0);
-
-    dispatch.EALIssuedTotalQuantity = dispatch.items.reduce((sum, i) =>
-      sum + (i.EALIssuedQuantity || 0), 0);
-
-    // Step 4: Remove EALDispatch entries and update usage
+    // Step 2: Every dispatch row inside the link, in serial order — one per
+    // production run the range was split across.
     const ealDispatches = await EALDispatch.find({
       dispatchId,
       item: itemId,
-      prefix,
-      serialFrom: serialFromNum,
-      serialTo: serialToNum
-    }).session(session);
+      prefix: linkPrefix,
+      serialFrom: { $gte: linkFrom },
+      serialTo: { $lte: linkTo }
+    }).sort({ serialFrom: 1 }).session(session);
 
     if (!ealDispatches.length) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Related EAL Dispatch records not found' });
     }
 
+    // Step 3: They have to account for the whole link. Returning part of a
+    // range would leave the note's case count and the runs' balances
+    // disagreeing, with nothing to say which of them is right.
+    const coverage = coverageRefusal(ealDispatches, linkFrom, linkTo);
+    if (coverage) {
+      await session.abortTransaction();
+      return res.status(409).json({ message: coverage });
+    }
+
+    const itemDetails = await Item.findById(itemId).session(session);
+    const bottlesPerCase = itemDetails?.bottlesPerCase || 1;
+
+    // Step 4: Give the labels back to their production runs. The balance is
+    // worked out from the ranges that are left rather than added back, so a
+    // balance that had drifted is put right instead of carried forward.
     for (const eal of ealDispatches) {
       if (eal.usageId) {
         const usage = await EALUsage.findById(eal.usageId).session(session);
         if (usage) {
-          // Remove used serial range
           usage.usedSerialRanges = usage.usedSerialRanges.filter(r =>
-            !(r.serialFrom === eal.serialFrom && r.serialTo === eal.serialTo)
+            !(r.serialFrom >= eal.serialFrom && r.serialTo <= eal.serialTo)
           );
-          const recoveredQty = eal.serialTo - eal.serialFrom + 1;
-          usage.balanceQuantity += recoveredQty;
-          usage.balanceQuantityInCases += recoveredQty / bottlesPerCase;
+          usage.balanceQuantity = usage.usedQuantity - usedTotal(usage.usedSerialRanges);
+          usage.balanceQuantityInCases = usage.balanceQuantity / bottlesPerCase;
           await usage.save({ session });
         }
       }
       await eal.deleteOne({ session });
     }
+
+    // Step 5: Take the link off the note — this one link, not every link
+    // that looks like it — and recount the cases.
+    item.EALLinks.pull(link._id);
+
+    item.EALIssuedQuantity = item.EALLinks.reduce((total, l) =>
+      total + (l.serialTo - l.serialFrom + 1) / bottlesPerCase, 0);
+
+    dispatch.EALIssuedTotalQuantity = dispatch.items.reduce((sum, i) =>
+      sum + (i.EALIssuedQuantity || 0), 0);
 
     await dispatch.save({ session });
 
