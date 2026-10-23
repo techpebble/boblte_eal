@@ -29,6 +29,15 @@ export const PERMISSIONS = [
 
     { key: 'eal:trace', group: 'Lookup', label: 'Trace a label' },
 
+    {
+        key: 'scan:manual',
+        group: 'Scanning',
+        label: 'Type a serial by hand',
+        note: 'Without this a serial has to be scanned. Typing one is how a '
+            + 'wrong number gets into the records, so it is given out '
+            + 'deliberately rather than held by everyone.'
+    },
+
     { key: 'masterdata:view', group: 'Master data', label: 'See items, packs, depots and companies' },
     { key: 'masterdata:manage', group: 'Master data', label: 'Add and change master data' },
 
@@ -44,6 +53,17 @@ export const PERMISSIONS = [
 ];
 
 export const PERMISSION_KEYS = PERMISSIONS.map((permission) => permission.key);
+
+/**
+ * Permissions no built-in role starts with.
+ *
+ * scan:manual is one of these on purpose. Typing a serial is how a wrong
+ * number reaches the records - a transposed digit reads as a real label -
+ * so it is given to the people who are trusted to do it rather than handed
+ * to every operator by default. Administrator holds every key, so there is
+ * always someone who can.
+ */
+export const GRANTED_DELIBERATELY = ['scan:manual'];
 
 /** The role that cannot be edited away, so there is always a way back in. */
 export const ADMIN_ROLE_NAME = 'Administrator';

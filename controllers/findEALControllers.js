@@ -4,150 +4,177 @@ import Dispatch from "../models/dispatch.js";
 import EALDispatch from "../models/eal_dispatches.js";
 import { companyScope } from "../middleware/authMiddleware.js";
 
+/**
+ * Where one label has been.
+ *
+ * A serial on its own does not name a label. A three-letter prefix is reused
+ * across packs and the ranges under it overlap, so the same ten digits can sit
+ * in two issuances of different pack sizes. The old answer to that was to run
+ * one query per collection on prefix-and-serial and hand back four flat lists,
+ * which mixed the two labels' histories together with nothing saying which row
+ * belonged to which — and, without a prefix typed, mixed in other products too.
+ *
+ * So: find the issuances the serial could belong to first. One, and we trace
+ * it. More than one, and the caller is asked which, because only they can see
+ * the bottle in their hand. Then every later stage is read from the stage
+ * before it — the usage by its issuanceId, the dispatch by its usageId — which
+ * is how the records are actually joined, and the only way the answer can be
+ * about one label.
+ */
+
+/** "NRK2048325000" or "2048325000" — the prefix is optional. */
+const readQuery = (value) => {
+    const text = String(value ?? '').trim();
+    if (!text) return { error: 'Enter an EAL serial.' };
+
+    const match = text.match(/^([a-zA-Z]{1,5})?\s*(\d{1,12})$/);
+    if (!match) {
+        return { error: 'An EAL is three letters and ten digits, for example NRK2048325000.' };
+    }
+
+    return {
+        prefix: match[1] ? match[1].toUpperCase() : null,
+        serial: Number(match[2])
+    };
+};
+
+const candidateOf = (issuance) => ({
+    id: issuance._id,
+    prefix: issuance.prefix,
+    pack: issuance.pack,
+    company: issuance.company,
+    market: issuance.market,
+    dateIssued: issuance.dateIssued,
+    serialFrom: issuance.serialFrom,
+    serialTo: issuance.serialTo,
+    issuedQuantity: issuance.issuedQuantity,
+    balanceQuantity: issuance.balanceQuantity
+});
 
 export const getEALData = async (req, res) => {
     try {
-        let serial;
-        const filter = {};
+        const { prefix, serial, error } = readQuery(req.query.ealNumber);
+        if (error) return res.status(400).json({ error });
 
-        if (!req.query.ealNumber) {
-            return res.status(400).json({
-                error: 'ealNumber query parameter is required'
-            });
-        }
+        const holdsSerial = { serialFrom: { $lte: serial }, serialTo: { $gte: serial } };
 
-        // This regex matches a prefix of letters and a serial of digits
-        const match = req.query.ealNumber.match(/^([a-zA-Z]+)(\d+)$/);
-
-        if (match) {
-            filter.prefix = match[1]; // captures the prefix (case-preserved)
-            serial = parseInt(match[2], 10); // numeric serial
-        } else {
-            serial = parseInt(req.query.ealNumber, 10);
-        }
-
-        // Apply filters based on query parameters
-        if (req.query.company) filter.company = req.query.company;
-        if (req.query.market) filter.market = req.query.market;
-        if (req.query.pack) filter.pack = req.query.pack;
-
-        // Without companies:all a person sees only their own company, whatever
-        // the query asked for.
-        Object.assign(filter, companyScope(req));
-
-        // Find all issuance records that match the prefix and contain the serial
-        const issuances = await EALIssuance.find({
-            ...filter,
-            serialFrom: { $lte: serial },
-            serialTo: { $gte: serial }
+        // Step 1 — which issuances could this label have come from?
+        const candidates = await EALIssuance.find({
+            ...companyScope(req),
+            ...(prefix ? { prefix } : {}),
+            ...(req.query.market ? { market: req.query.market } : {}),
+            ...holdsSerial
         })
-            .populate('company', 'name')
+            .populate('company', 'name code')
             .populate('pack', 'name bottlesPerCase')
             .populate('createdBy', 'fullName email')
             .sort({ dateIssued: -1 });
 
-        if (!issuances || issuances.length === 0) {
+        if (candidates.length === 0) {
             return res.status(404).json({
-                error: 'EAL issuance not found'
+                error: prefix
+                    ? `No issuance of ${prefix} holds serial ${serial}.`
+                    : `No issuance holds serial ${serial}.`,
+                serial,
+                prefix
             });
         }
 
-        // Find all usages that contain the serial
-        const usages = await EALUsage.find({
-            ...filter,
-            serialFrom: { $lte: serial },
-            serialTo: { $gte: serial }
-        })
-            .populate('company', 'name')
-            .populate('pack', 'name bottlesPerCase')
-            .populate('item', 'name alias')
-            .populate('createdBy', 'fullName email');
+        // Step 2 — more than one, and only the person holding the bottle can
+        // say which. Unless they have already told us.
+        const chosenId = req.query.issuanceId;
+        const chosen = chosenId
+            ? candidates.find((entry) => String(entry._id) === String(chosenId))
+            : candidates.length === 1
+                ? candidates[0]
+                : null;
 
-        // Find all eal dispatch records that contain the serial
-        const ealDispatches = await EALDispatch.find({
-            ...filter,
-            serialFrom: { $lte: serial },
-            serialTo: { $gte: serial }
-        })
-            .populate('company', 'name')
+        if (!chosen) {
+            if (chosenId) {
+                return res.status(400).json({
+                    error: 'That issuance does not hold this serial.',
+                    serial,
+                    candidates: candidates.map(candidateOf)
+                });
+            }
+            return res.status(200).json({
+                serial,
+                prefix: prefix ?? null,
+                needsChoice: true,
+                candidates: candidates.map(candidateOf)
+            });
+        }
+
+        // Step 3 — the chain. Each stage comes from the one before it.
+        const usages = await EALUsage.find({ issuanceId: chosen._id, ...holdsSerial })
             .populate('item', 'name alias')
             .populate('pack', 'name bottlesPerCase')
-            .populate('createdBy', 'fullName email');
+            .populate('createdBy', 'fullName email')
+            .sort({ dateUsed: 1 });
 
-        // If there are dispatches, fetch the related Dispatch documents (may be multiple)
-        const dispatchIds = Array.from(new Set(ealDispatches.map(d => String(d.dispatchId)).filter(Boolean)));
-        const dispatches = dispatchIds.length > 0
-            ? await Dispatch.find({ _id: { $in: dispatchIds } })
-                .populate('company', 'name')
+        const ealDispatches = usages.length > 0
+            ? await EALDispatch.find({ usageId: { $in: usages.map((u) => u._id) }, ...holdsSerial })
+                .populate('item', 'name alias')
+                .populate('createdBy', 'fullName email')
+                .sort({ dateDispatched: 1 })
+            : [];
+
+        const noteIds = [...new Set(ealDispatches.map((d) => String(d.dispatchId)).filter(Boolean))];
+        const notes = noteIds.length > 0
+            ? await Dispatch.find({ _id: { $in: noteIds } })
+                .populate('company', 'name code')
                 .populate('deliveryTo', 'name')
             : [];
 
-        // Build response arrays
-        const issuanceData = issuances.map(i => ({
-            id: i._id,
-            dateIssued: i.dateIssued,
-            serialFrom: i.serialFrom,
-            serialTo: i.serialTo,
-            issuedQuantity: i.issuedQuantity,
-            balanceQuantity: i.balanceQuantity,
-            usedSerialRanges: i.usedSerialRanges,
-            createdBy: i.createdBy,
-            createdAt: i.createdAt,
-            company: i.company,
-            market: i.market,
-            pack: i.pack,
-            prefix: i.prefix
-        }));
+        const noteById = Object.fromEntries(notes.map((note) => [String(note._id), note]));
 
-        const usageData = usages.map(u => ({
-            id: u._id,
-            dateUsed: u.dateUsed,
-            serialFrom: u.serialFrom,
-            serialTo: u.serialTo,
-            usedQuantity: u.usedQuantity,
-            balanceQuantity: u.balanceQuantity,
-            usedQuantityInCases: u.usedQuantityInCases,
-            balanceQuantityInCases: u.balanceQuantityInCases,
-            item: u.item,
-            createdBy: u.createdBy,
-            createdAt: u.createdAt,
-            issuanceId: u.issuanceId
-        }));
+        // Where the label is now, read off the furthest stage it has reached.
+        const note = ealDispatches.length > 0 ? noteById[String(ealDispatches[0].dispatchId)] : null;
+        const state = note
+            ? (note.status === 'delivered' ? 'delivered' : note.status === 'dispatched' ? 'in-transit' : 'linked')
+            : usages.length > 0 ? 'applied' : 'on-hand';
 
-        const ealDispatchData = ealDispatches.map(d => ({
-            id: d._id,
-            dateDispatched: d.dateDispatched,
-            serialFrom: d.serialFrom,
-            serialTo: d.serialTo,
-            usedQuantity: d.usedQuantity,
-            usedQuantityInCases: d.usedQuantityInCases,
-            createdBy: d.createdBy,
-            createdAt: d.createdAt,
-            dispatchId: d.dispatchId
-        }));
-
-        const dispatchData = dispatches.map(d => ({
-            id: d._id,
-            date: d.date,
-            // include relevant fields as needed
-            ...d.toObject()
-        }));
-
-        const respondData = {
-            serial: serial || null,
-            prefix: issuances[0] ? issuances[0].prefix : null,
-            issuance: issuanceData,
-            usage: usageData,
-            ealDispatches: ealDispatchData,
-            dispatches: dispatchData
-        };
-
-        res.status(200).json({ respondData });
-
-    } catch (error) {
-        return res.status(500).json({
-            error: 'Failed to fetch EAL data',
-            message: error.message
+        return res.status(200).json({
+            serial,
+            prefix: chosen.prefix,
+            state,
+            // Kept so the caller can offer a way back to the choice it made.
+            candidates: candidates.length > 1 ? candidates.map(candidateOf) : [],
+            issuance: {
+                ...candidateOf(chosen),
+                usedSerialRanges: chosen.usedSerialRanges,
+                createdBy: chosen.createdBy,
+                createdAt: chosen.createdAt
+            },
+            usage: usages.map((entry) => ({
+                id: entry._id,
+                dateUsed: entry.dateUsed,
+                item: entry.item,
+                pack: entry.pack,
+                prefix: entry.prefix,
+                serialFrom: entry.serialFrom,
+                serialTo: entry.serialTo,
+                usedQuantity: entry.usedQuantity,
+                usedQuantityInCases: entry.usedQuantityInCases,
+                balanceQuantityInCases: entry.balanceQuantityInCases,
+                createdBy: entry.createdBy
+            })),
+            ealDispatches: ealDispatches.map((entry) => ({
+                id: entry._id,
+                dateDispatched: entry.dateDispatched,
+                item: entry.item,
+                prefix: entry.prefix,
+                serialFrom: entry.serialFrom,
+                serialTo: entry.serialTo,
+                usedQuantity: entry.usedQuantity,
+                usedQuantityInCases: entry.usedQuantityInCases,
+                createdBy: entry.createdBy,
+                dispatchId: entry.dispatchId,
+                note: noteById[String(entry.dispatchId)] || null
+            }))
         });
+    } catch (error) {
+        console.error('Failed to trace an EAL:', error);
+        return res.status(500).json({ error: 'Failed to fetch EAL data', message: error.message });
     }
-}
+};
