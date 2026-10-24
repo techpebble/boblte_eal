@@ -210,6 +210,12 @@ export const getAllEALUsage = async (req, res) => {
         if (req.query.market) filter.market = req.query.market;
         if (req.query.prefix) filter.prefix = req.query.prefix;
 
+        // Every run is recorded against the issuance it drew from, so asking
+        // for one issuance's runs is the honest way to answer "where did
+        // these labels go" — rather than matching on prefix and serial, which
+        // two issuances of different pack sizes can both satisfy.
+        if (req.query.issuanceId) filter.issuanceId = req.query.issuanceId;
+
         // If query type is 'balance', only include records with balanceQuantityInCases > 0
         if (req.query.type && req.query.type.toLowerCase() === 'balance') {
             filter.balanceQuantityInCases = { $gt: 0 };
