@@ -517,8 +517,9 @@ export const updateDispatchDate = async (req, res) => {
       outcome = {
         code: 400,
         body: {
-          error: `This note is ${existing.status}. The date it went is part of the ` +
-            `record now, so it cannot be moved. Send the note back a stage first.`,
+          error: `This note is ${existing.status}. The load has been made up ` +
+            `against this date, so it cannot be moved here. Send the note back ` +
+            `a stage first.`,
           status: existing.status
         }
       };

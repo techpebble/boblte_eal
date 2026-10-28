@@ -72,11 +72,18 @@ export const vehicleIsFrozen = (dispatch) =>
  *
  * A note can sit covered for days — the lorry breaks down, the shift
  * changes — and the date it was raised with stops being the date it will
- * go. Up to and including `loaded` nothing has left the yard, so the date
- * is still something to correct. From `dispatched` on it is the date the
- * load actually went, which is a fact about the past.
+ * go. Up to and including `final` that is a plan being corrected. Loading
+ * is where the plan becomes an event: the vehicle is recorded against the
+ * note and the excise paperwork is written from the two together, so the
+ * date stops being ours to move, the same way the vehicle does. A note
+ * sent back a stage becomes movable again, which is the way back for a
+ * date that went in wrong.
+ *
+ * It matches VEHICLE_EDITABLE_STAGES above, and for the same reason, but
+ * they are two rules rather than one — either could be asked to change
+ * without the other.
  */
-export const DATE_EDITABLE_STAGES = ['draft', 'final', 'loaded'];
+export const DATE_EDITABLE_STAGES = ['draft', 'final'];
 
 export const dateIsFrozen = (dispatch) =>
     !DATE_EDITABLE_STAGES.includes(clean(dispatch?.status));
