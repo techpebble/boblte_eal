@@ -6,7 +6,7 @@ import Item from "../models/item.js";
 import { startOfDay, endOfDay } from '../utils/dateWindow.js';
 import { companyScope, companyRefusal, can } from '../middleware/authMiddleware.js';
 import { linkRefusal } from '../utils/linkWindow.js';
-import { transitionRefusal, isBackward, vehicleIsFrozen } from '../utils/stageTransition.js';
+import { transitionRefusal, isBackward, vehicleIsFrozen, dateIsFrozen } from '../utils/stageTransition.js';
 import { isManualEntry, manualEntryRefusal } from '../utils/manualEntry.js';
 import { coverageRefusal, usedTotal } from '../utils/serialRanges.js';
 
@@ -472,6 +472,97 @@ export const updateVehicleDetails = async (req, res) => {
   }
 
 }
+
+/**
+ * Move a note to a different dispatch date.
+ *
+ * `updateDispatch` only works on a draft, because it rewrites the lines and
+ * the totals and those must not move once labels are linked against them.
+ * But a note that is covered and waiting is exactly the one whose date goes
+ * wrong: the lorry does not turn up, the shift changes, and the load goes
+ * tomorrow instead. There was no way to say so without unlinking the whole
+ * note and starting again.
+ *
+ * So this moves the date and nothing else — and it moves the linked EAL
+ * dispatch rows with it. Those rows carry their own `dateDispatched`, and
+ * every report that counts labels out of the plant reads them rather than
+ * the note, so leaving them behind would put the note on one day and its
+ * labels on another. The two writes go in one transaction for the same
+ * reason: half of this change is worse than none of it.
+ */
+export const updateDispatchDate = async (req, res) => {
+  const { dispatchId } = req.params;
+  const { dateDispatched } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(dispatchId)) {
+    return res.status(400).json({ error: 'Invalid Dispatch ID' });
+  }
+  if (isNaN(Date.parse(dateDispatched))) {
+    return res.status(400).json({ error: 'Please enter the date correctly' });
+  }
+
+  const session = await mongoose.startSession();
+  let outcome;
+
+  try {
+    session.startTransaction();
+
+    const existing = await Dispatch.findOne({ _id: dispatchId, ...companyScope(req) }).session(session);
+
+    if (!existing) {
+      await session.abortTransaction();
+      outcome = { code: 404, body: { error: 'Dispatch not found' } };
+    } else if (dateIsFrozen(existing)) {
+      await session.abortTransaction();
+      outcome = {
+        code: 400,
+        body: {
+          error: `This note is ${existing.status}. The date it went is part of the ` +
+            `record now, so it cannot be moved. Send the note back a stage first.`,
+          status: existing.status
+        }
+      };
+    } else {
+      const nextDate = new Date(dateDispatched);
+
+      const moved = await EALDispatch.updateMany(
+        { dispatchId: existing._id },
+        { dateDispatched: nextDate },
+        { session }
+      );
+
+      existing.dateDispatched = nextDate;
+      await existing.save({ session });
+
+      await session.commitTransaction();
+      outcome = { code: 200, rangesMoved: moved.modifiedCount };
+    }
+  } catch (error) {
+    // Only abort what is still open. Aborting a committed session throws an
+    // error of its own, which would bury the one that actually happened.
+    if (session.inTransaction()) await session.abortTransaction();
+    console.error('Error updating the dispatch date:', error);
+    outcome = { code: 500, body: { error: 'Internal Server Error' } };
+  } finally {
+    session.endSession();
+  }
+
+  if (outcome.body) return res.status(outcome.code).json(outcome.body);
+
+  // Read back outside the transaction. It is not part of the change, and a
+  // failure here must not be reported as a failure to apply it.
+  const updatedDispatch = await Dispatch.findById(dispatchId)
+    .populate('company', 'name code')
+    .populate('deliveryTo', 'name')
+    .populate({ path: 'items.item' })
+    .populate('createdBy', 'fullName email');
+
+  return res.status(200).json({
+    message: 'Dispatch date updated',
+    rangesMoved: outcome.rangesMoved,
+    data: updatedDispatch
+  });
+};
 
 /**
  * Unlink EAL ranges from dispatch items with validations.

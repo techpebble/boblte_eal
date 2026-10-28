@@ -67,6 +67,20 @@ export const VEHICLE_EDITABLE_STAGES = ['draft', 'final'];
 export const vehicleIsFrozen = (dispatch) =>
     !VEHICLE_EDITABLE_STAGES.includes(clean(dispatch?.status));
 
+/**
+ * The stages at which the dispatch date is still a plan.
+ *
+ * A note can sit covered for days — the lorry breaks down, the shift
+ * changes — and the date it was raised with stops being the date it will
+ * go. Up to and including `loaded` nothing has left the yard, so the date
+ * is still something to correct. From `dispatched` on it is the date the
+ * load actually went, which is a fact about the past.
+ */
+export const DATE_EDITABLE_STAGES = ['draft', 'final', 'loaded'];
+
+export const dateIsFrozen = (dispatch) =>
+    !DATE_EDITABLE_STAGES.includes(clean(dispatch?.status));
+
 /** Lines whose cases are not all covered by linked labels. */
 const shortLinesOf = (dispatch) =>
     (dispatch?.items ?? []).filter(
